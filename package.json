@@ -1,0 +1,23 @@
+{
+  "name": "design-team-board",
+  "version": "1.0.0",
+  "description": "설계팀 업무 보드 위젯",
+  "main": "main.js",
+  "author": "설계팀",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.designteam.board",
+    "productName": "설계팀 업무보드",
+    "win": {
+      "target": "portable",
+      "icon": "icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
