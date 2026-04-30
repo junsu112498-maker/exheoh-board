@@ -1002,21 +1002,21 @@ if(localStorage.getItem('currentUser')){
     </div>
     <div id="board-search-results" style="display:none;flex:1;overflow-y:auto;"></div>
     <div id="board-normal-view" style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0 10px;">
-    <div class="section-bar" style="padding-top:8px;">
+    <div style="flex-shrink:0;padding-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
       <button class="cal-nav-btn" onclick="changeViewDate(-1)" style="padding:2px 9px;font-size:12px;background:var(--blue-bg);color:var(--blue-txt);border-color:var(--blue-bd);">←</button>
       <span id="view-date-lbl" onclick="openBoardDatePicker()" style="font-size:10px;font-weight:600;padding:2px 9px;border-radius:6px;border:1px solid var(--blue-bd);background:var(--blue-bg);color:var(--blue-txt);cursor:pointer;font-family:var(--mono);white-space:nowrap;">오늘</span>
       <span class="cnt-badge" id="cnt">0</span>
       <button class="cal-nav-btn" onclick="changeViewDate(1)" style="padding:2px 9px;font-size:12px;background:var(--blue-bg);color:var(--blue-txt);border-color:var(--blue-bd);">→</button>
       <div id="board-team-filter-bar" class="team-filter-bar" style="flex:0 0 auto;"></div>
-      <div class="filters">
-        <button class="fbtn on" onclick="setFilter('전체',this)">전체</button>
-        <button class="fbtn" onclick="setFilter('작업중',this)">작업중</button>
-        <button class="fbtn" onclick="setFilter('작업완료',this)">작업완료</button>
-        <button class="fbtn" onclick="setFilter('1차송부',this)">1차송부</button>
-        <button class="fbtn" onclick="setFilter('납품',this)">납품</button>
-        <button class="fbtn" onclick="setFilter('작업예정',this)">작업예정</button>
-        <button class="fbtn" onclick="setFilter('기타',this)">기타</button>
-      </div>
+    </div>
+    <div style="flex-shrink:0;padding:4px 0 6px;" class="filters">
+      <button class="fbtn on" onclick="setFilter('전체',this)">전체</button>
+      <button class="fbtn" onclick="setFilter('작업중',this)">작업중</button>
+      <button class="fbtn" onclick="setFilter('작업완료',this)">작업완료</button>
+      <button class="fbtn" onclick="setFilter('1차송부',this)">1차송부</button>
+      <button class="fbtn" onclick="setFilter('납품',this)">납품</button>
+      <button class="fbtn" onclick="setFilter('작업예정',this)">작업예정</button>
+      <button class="fbtn" onclick="setFilter('기타',this)">기타</button>
     </div>
     <div id="board-list" style="flex:1;overflow-y:auto;padding-bottom:10px;"></div>
     </div>
