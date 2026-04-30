@@ -33,7 +33,7 @@
   --red: #dc2626; --red-bg: #fef2f2; --red-txt: #b91c1c; --red-bd: #fecaca;
   --teal: #0891b2; --teal-bg: #ecfeff; --teal-txt: #0e7490; --teal-bd: #a5f3fc;
   --radius: 9px; --radius-lg: 13px;
-  --font: 'Nanum Square', sans-serif;
+  --font: '나눔스퀘어', 'Nanum Square', sans-serif;
   --mono: 'DM Mono', monospace;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3703,9 +3703,9 @@ window._submitMemo=window.submitMemo=function(){
   const text = document.getElementById('memo-text').value.trim();
   const projId = document.getElementById('memo-proj-sel').value||'';
   const author = localStorage.getItem('currentUser')||'익명';
-  const secret = document.getElementById('memo-secret-chk')?.checked||false;
   if(!text) return;
   const now = new Date();
+  const secret = document.getElementById('memo-secret-chk')?.checked||false;
   push(memosRef,{
     author, text, projId,
     date: now.toISOString().slice(0,10),
@@ -4599,7 +4599,6 @@ window.adminChangeMemberGroup = function(name, groupId){
   renderTeamFilterBars();
 };
 
-// 이름 변경 시 Firebase 전체 마이그레이션
 async function migrateUserName(oldName, newName){
   try {
     const updates = {};
@@ -4617,7 +4616,6 @@ async function migrateUserName(oldName, newName){
     const favSnap = await get(ref(db,'favorites/'+oldName));
     if(favSnap.exists()){ updates['favorites/'+newName]=favSnap.val(); updates['favorites/'+oldName]=null; }
     if(Object.keys(updates).length > 0) await update(ref(db), updates);
-    console.log('[이름변경] 마이그레이션 완료:', oldName, '->', newName);
   } catch(err) { console.error('[이름변경] 오류:', err); }
 }
 
@@ -5335,6 +5333,10 @@ window.bdpSelectDate = function(ds){
     _isMax = !_isMax;
     shell.classList.toggle('maximized', _isMax);
     if(window.electronAPI) window.electronAPI.toggleMaximize();
+    setTimeout(() => {
+      const boardList = document.getElementById('board-list');
+      if(boardList) { boardList.style.flex='0'; boardList.offsetHeight; boardList.style.flex='1'; }
+    }, 100);
   };
   window._toggleMaximize = window._doToggleMaximize;
 
@@ -5907,7 +5909,7 @@ window.ganttPrint = function(){
     'var(--green-bg)':'#f0fdf4','var(--green-txt)':'#15803d','var(--green-bd)':'#bbf7d0',
     'var(--surface2)':'#f0efe9','var(--text3)':'#9e9b91','var(--border2)':'#c8c5ba',
     'var(--surface)':'#ffffff','var(--border)':'#e2e0d8','var(--text)':'#1a1916','var(--text2)':'#5a5750',
-    'var(--radius)':'9px','var(--font)':'Nanum Square,sans-serif',
+    'var(--radius)':'9px','var(--font)':'나눔스퀘어,sans-serif',
   };
 
   let chartHtml = chartEl.innerHTML;
@@ -5925,7 +5927,7 @@ window.ganttPrint = function(){
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       html, body { width: 100%; background: #fff; }
-      body { font-family: 'Nanum Square', sans-serif; font-size: 10px; color: #1a1916; padding: 10px 12px; }
+      body { font-family: '나눔스퀘어', 'Nanum Square', sans-serif; font-size: 10px; color: #1a1916; padding: 10px 12px; }
       h3 { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
       #scale-wrap { transform-origin: top left; }
       table { border-collapse: collapse; table-layout: fixed; font-size: 9px; }
@@ -7604,14 +7606,14 @@ function startLadder(){
     });
     // 이름 (상단)
     names.forEach((n,i)=>{
-      ctx.font = 'bold 11px "Nanum Square", "Noto Sans KR", sans-serif';
+      ctx.font = 'bold 11px "나눔스퀘어", "Noto Sans KR", sans-serif';
       ctx.fillStyle = GAME_COLORS[i%GAME_COLORS.length];
       ctx.textAlign = 'center';
       ctx.fillText(n.length>4?n.slice(0,4)+'…':n, xs[i], topY-8);
     });
     // 결과 (하단) — 먼저 가린 상태로
     shuffled.forEach((r,i)=>{
-      ctx.font = 'bold 11px "Nanum Square", "Noto Sans KR", sans-serif';
+      ctx.font = 'bold 11px "나눔스퀘어", "Noto Sans KR", sans-serif';
       ctx.fillStyle = '#9e9b91';
       ctx.textAlign = 'center';
       ctx.fillText('?', xs[i], botY+16);
@@ -7691,7 +7693,7 @@ function startLadder(){
         ctx.beginPath(); path.forEach((p,k)=>k===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
         // 하단 결과 텍스트 공개
         const r = shuffled[result];
-        ctx.font = 'bold 11px "Nanum Square", "Noto Sans KR", sans-serif';
+        ctx.font = 'bold 11px "나눔스퀘어", "Noto Sans KR", sans-serif';
         ctx.fillStyle = r.type==='win' ? '#16a34a' : '#dc2626';
         ctx.textAlign = 'center';
         ctx.fillText(r.label.length>4?r.label.slice(0,4)+'…':r.label, xs[result], botY+16);
@@ -7805,7 +7807,7 @@ function drawRoulette(highlightIdx=-1){
     ctx.translate(tx,ty);
     ctx.rotate(mid + Math.PI/2);
     ctx.fillStyle = '#fff';
-    ctx.font = `bold ${n>8?10:12}px "Nanum Square", "Noto Sans KR", sans-serif`;
+    ctx.font = `bold ${n>8?10:12}px "나눔스퀘어", "Noto Sans KR", sans-serif`;
     ctx.textAlign='center';
     ctx.textBaseline='middle';
     const txt = item.label.length>5?item.label.slice(0,5)+'…':item.label;
@@ -7822,7 +7824,7 @@ function drawRoulette(highlightIdx=-1){
   ctx.lineWidth=2;
   ctx.stroke();
   ctx.fillStyle='#1a1916';
-  ctx.font='bold 10px "Nanum Square", "Noto Sans KR"';
+  ctx.font='bold 10px "나눔스퀘어", "Noto Sans KR"';
   ctx.textAlign='center';
   ctx.textBaseline='middle';
   ctx.fillText('GO',cx,cy);
