@@ -591,7 +591,7 @@ if(localStorage.getItem('currentUser')){
         <rect x="1" y="10" width="7" height="7" rx="2" fill="#2563eb" opacity=".4"/>
         <rect x="10" y="10" width="7" height="7" rx="2" fill="#2563eb"/>
       </svg>
-      <span class="logo-text">EXHEOH 업무보드</span>
+      <span class="logo-text">설계팀 보드</span>
       <div class="live-dot"></div>
       <span id="current-user-lbl" onclick="changeUser()" title="클릭: 사용자 변경 | 우클릭: PIN 변경" oncontextmenu="event.preventDefault();changePin()" style="font-size:11px;color:var(--blue-txt);background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:99px;padding:1px 8px;cursor:pointer;-webkit-app-region:no-drag;" title="클릭하면 사용자 변경"></span>
       <button onclick="openAdminModal()" title="어드민 PIN 관리" style="-webkit-app-region:no-drag;background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:1px 4px;border-radius:4px;line-height:1;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">🔐</button>
@@ -828,7 +828,11 @@ let _userInitDone=false;
 
 // ── 프로젝트 select 동기화 ──
 function updateProjSelects(){
-  const opts=Object.entries(projects).map(([id,p])=>`<option value="${id}">${p.name}</option>`).join('');
+  const sorted = Object.entries(projects).sort((a,b)=>{
+    const na=(a[1].name||'').localeCompare(b[1].name||'','ko');
+    return na;
+  });
+  const opts=sorted.map(([id,p])=>`<option value="${id}">${p.name}</option>`).join('');
   ['inp-proj','edit-proj'].forEach(elId=>{
     const el=document.getElementById(elId);
     if(!el) return;
@@ -1018,10 +1022,18 @@ function render(){
 function renderStats(){
   const all=Object.values(entries);
   const curUser=localStorage.getItem('currentUser')||'';
+  // 통계에서 '사내 행사 및 기타' 프로젝트 제외
+  const STAT_EXCLUDE_PROJ = '사내 행사 및 기타';
+  function isExcludedFromStats(e){
+    if(!e.projectId) return false;
+    const p = projects[e.projectId];
+    return p && p.name === STAT_EXCLUDE_PROJ;
+  }
 
   // ── 사람별 ──
   const personMap={};
   all.forEach(e=>{
+    if(isExcludedFromStats(e)) return;
     if(!e.name) return;
     if(!personMap[e.name]) personMap[e.name]={total:0,'cnt작업중':0,'cnt작업완료':0,'cnt1차송부':0,'cnt납품':0,'cnt작업예정':0,projects:{},totalMin:0};
     const pm=personMap[e.name]; pm.total++;
@@ -1070,6 +1082,7 @@ function renderStats(){
   // ── 프로젝트별 ──
   const projMap={};
   all.forEach(e=>{
+    if(isExcludedFromStats(e)) return;
     const pid=e.projectId||'__none__';
     const pname=e.projectId&&projects[e.projectId]?projects[e.projectId].name:'미지정';
     if(!projMap[pid]) projMap[pid]={name:pname,persons:{},totalMin:0,count:0};
@@ -1111,6 +1124,7 @@ function renderStats(){
   const monthMap={};
   all.forEach(e=>{
     if(!e.date) return;
+    if(isExcludedFromStats(e)) return;
     const ym=e.date.slice(0,7);
     if(!monthMap[ym]) monthMap[ym]={};
     const mData=monthMap[ym];
@@ -1389,7 +1403,13 @@ window._submitMemo=window.submitMemo=function(){
   document.getElementById('memo-text').value='';
 }
 
-window._deleteMemo=window.deleteMemo=function(id){ if(!confirm('메모를 삭제하시겠습니까?')) return; remove(ref(db,'memos/'+id)); }
+window._deleteMemo=window.deleteMemo=function(id){
+  const curUser=localStorage.getItem('currentUser')||'';
+  const memo=memos[id];
+  if(memo && memo.author !== curUser && !currentIsAdmin()){
+    alert('본인이 작성한 메모만 삭제할 수 있어요.');
+    return;
+  } if(!confirm('메모를 삭제하시겠습니까?')) return; remove(ref(db,'memos/'+id)); }
 
 function renderMemoTabs(){
   const tabEl = document.getElementById('memo-person-tabs');
