@@ -1304,7 +1304,7 @@ if(localStorage.getItem('currentUser')){
   <!-- 할일 수정 모달 -->
   <div id="todo-edit-bg" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;border-radius:16px;">
     <div style="background:var(--surface);border-radius:14px;padding:18px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-      <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:12px;">✏️ 할일 수정</div>
+      <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:12px;">✏️ 할일 ��정</div>
       <input id="todo-edit-proj" type="text" placeholder="프로젝트명" style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);font-size:13px;font-family:var(--font);color:var(--text);outline:none;margin-bottom:7px;box-sizing:border-box;"/>
       <input id="todo-edit-text" type="text" placeholder="업무 내용..." style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);font-size:13px;font-family:var(--font);color:var(--text);outline:none;margin-bottom:7px;box-sizing:border-box;"/>
       <input id="todo-edit-due" type="datetime-local" style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-family:var(--font);color:var(--text);outline:none;margin-bottom:7px;box-sizing:border-box;"/>
@@ -2065,11 +2065,19 @@ onValue(entriesRef,(snap)=>{
   const newEntries=snap.val()||{};
   checkNewEntries(newEntries);
   entries=newEntries;
-  // team 필드 없는 기존 데이터 자동 채우기
+  // 이름/team 필드 자동 보정 (예: "김유빈" → "김유빈 책임")
+  const _members = getMemberList();
   const _teamUpdates = {};
   Object.entries(newEntries).forEach(([id, e]) => {
+    // 이름 보정: 멤버 목록에 없으면 포함 매칭으로 정확한 이름 찾기
+    if(!_members.includes(e.name)){
+      const matched = _members.find(m => m.startsWith(e.name) || e.name.startsWith(m.split(' ')[0]));
+      if(matched) _teamUpdates['entries/'+id+'/name'] = matched;
+    }
+    // team 필드 없으면 채우기
     if(!e.team){
-      const grp = getMemberGroup(e.name);
+      const realName = _teamUpdates['entries/'+id+'/name'] || e.name;
+      const grp = getMemberGroup(realName);
       if(grp) _teamUpdates['entries/'+id+'/team'] = grp;
     }
   });
