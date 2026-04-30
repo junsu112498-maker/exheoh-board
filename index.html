@@ -962,9 +962,7 @@ if(localStorage.getItem('currentUser')){
           <option value="작업예정">작업예정</option>
           <option value="기타">기타</option>
         </select>
-        <select id="inp-team" style="font-size:11px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);">
-          <option value="">소속팀</option>
-        </select>
+
       </div>
       <div class="input-row" style="margin-bottom:7px">
         <div class="proj-search-wrap" id="proj-search-wrap">
@@ -2108,15 +2106,7 @@ function updateProjSelects(){
 }
 
 function updateTeamSelect(){
-  const el = document.getElementById('inp-team');
-  if(!el) return;
-  const groups = getGroupList();
-  el.innerHTML = `<option value="">소속팀</option>`
-    + groups.map(g=>`<option value="${g.name}">${g.name}</option>`).join('');
-  // 현재 사용자의 팀 자동 선택
-  const curUser = localStorage.getItem('currentUser')||'';
-  const myGroup = getMemberGroup(curUser);
-  if(myGroup) el.value = myGroup;
+  // inp-team 제거됨 - 팀은 그룹에서 자동 조회
 }
 
 // ── 업무 CRUD ──
@@ -2585,12 +2575,7 @@ function renderTeamFilterBars(){
     `).join('');
   }
 
-  // 소속팀 select (업무 입력)
-  const inpTeam = document.getElementById('inp-team');
-  if(inpTeam){
-    inpTeam.innerHTML = '<option value="">소속팀</option>' +
-      groups.map(g=>`<option value="${g.name}">${g.name}</option>`).join('');
-  }
+
 
   // 일정표 소속팀 드롭다운 (비고→소속팀)
   const ganttTeamDd = document.getElementById('gantt-team-dd');
