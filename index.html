@@ -224,6 +224,7 @@ html, body {
 /* ── 패널 ── */
 .panel { display: none; flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; background: var(--bg); }
 .panel.active { display: block; }
+#panel-board.active { display: flex; }
 #panel-gantt.active { display: flex; }
 .panel::-webkit-scrollbar { width: 4px; }
 .panel::-webkit-scrollbar-track { background: transparent; }
@@ -263,7 +264,7 @@ textarea { width: 100%; resize: none; min-height: 50px; line-height: 1.6; }
 .sec-label { font-size: 12px; font-weight: 700; color: var(--text2); }
 .cnt-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 1px 7px; font-size: 11px; color: var(--text2); font-family: var(--mono); }
 .filters { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
-.fbtn { font-size: 12px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--text2); cursor: pointer; font-family: var(--font); transition: all .12s; }
+.fbtn { font-size: 12px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--text2); cursor: pointer; font-family: var(--font); transition: all .12s; } white-space: nowrap; font-family: var(--font);}
 .fbtn:hover { background: var(--surface2); }
 .fbtn.on { background: var(--blue); color: #fff; border-color: var(--blue); }
 
