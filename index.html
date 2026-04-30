@@ -27,7 +27,7 @@
   --mono: 'DM Mono', monospace;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 100%; height: 100%; background: transparent; font-family: var(--font); color: var(--text); overflow: hidden; }
+html, body { width: 100%; height: 100%; background: transparent; font-family: var(--font); color: var(--text); overflow: hidden; border-radius: 16px; }
 
 .widget-shell {
   width: 100%; height: 100vh;
@@ -515,6 +515,36 @@ if(localStorage.getItem('currentUser')){
   </div>
 </div>
 
+
+<!-- 어드민 로그인 오버레이 -->
+<div id="admin-login-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
+  <div class="av" style="background:var(--amber-bg);color:var(--amber-txt);width:48px;height:48px;font-size:16px;margin-bottom:12px;">관</div>
+  <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;">어드민 로그인</div>
+  <div style="font-size:11px;color:var(--text3);margin-bottom:20px;">어드민 PIN 4자리를 입력하세요</div>
+  <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <div id="ald0" style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:background .15s;"></div>
+    <div id="ald1" style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:background .15s;"></div>
+    <div id="ald2" style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:background .15s;"></div>
+    <div id="ald3" style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:background .15s;"></div>
+  </div>
+  <div class="pin-pad">
+    <button class="pin-key" onclick="alInput('1')">1</button>
+    <button class="pin-key" onclick="alInput('2')">2</button>
+    <button class="pin-key" onclick="alInput('3')">3</button>
+    <button class="pin-key" onclick="alInput('4')">4</button>
+    <button class="pin-key" onclick="alInput('5')">5</button>
+    <button class="pin-key" onclick="alInput('6')">6</button>
+    <button class="pin-key" onclick="alInput('7')">7</button>
+    <button class="pin-key" onclick="alInput('8')">8</button>
+    <button class="pin-key" onclick="alInput('9')">9</button>
+    <button class="pin-key empty"></button>
+    <button class="pin-key" onclick="alInput('0')">0</button>
+    <button class="pin-key del" onclick="alDel()">⌫</button>
+  </div>
+  <div id="al-err" style="font-size:11px;color:var(--red-txt);margin-top:8px;min-height:16px;"></div>
+  <button onclick="closeAdminLoginOverlay()" style="margin-top:14px;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--font);text-decoration:underline;">← 돌아가기</button>
+</div>
+
 <!-- PIN 입력 오버레이 -->
 <div class="pin-overlay" id="pin-overlay">
   <div class="pin-av" id="pin-av"></div>
@@ -567,6 +597,7 @@ if(localStorage.getItem('currentUser')){
       <button onclick="openAdminModal()" title="어드민 PIN 관리" style="-webkit-app-region:no-drag;background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:1px 4px;border-radius:4px;line-height:1;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">🔐</button>
     </div>
     <div class="titlebar-right">
+      <button id="notify-toggle-btn" onclick="toggleNotify()" title="알림 켜기/끄기" style="-webkit-app-region:no-drag;background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;border-radius:4px;line-height:1;transition:opacity .15s;">🔔</button>
       <button class="win-btn btn-close" onclick="closeWidget()" title="닫기"></button>
       <button class="win-btn btn-min" onclick="minimizeWidget()" title="최소화"></button>
     </div>
@@ -781,7 +812,9 @@ function initials(n){ return n.slice(0,2); }
 
 // ── Firebase 리스너 ──
 onValue(entriesRef,(snap)=>{
-  entries=snap.val()||{};
+  const newEntries=snap.val()||{};
+  checkNewEntries(newEntries);
+  entries=newEntries;
   render(); renderCal();
   if(document.getElementById('panel-stats').classList.contains('active')) renderStats();
 });
@@ -944,6 +977,7 @@ function updateViewDateLabel(){
 // ── 렌더 ──
 function render(){
   const td=viewDate;
+  const curUser=localStorage.getItem('currentUser')||'';
   const all=Object.entries(entries).map(([id,e])=>({...e,id}));
   const todayAll=all.filter(e=>!e.date||e.date===td);
   const filtered=filterTag==='전체'?todayAll:todayAll.filter(e=>e.tag===filterTag);
@@ -957,11 +991,12 @@ function render(){
     const pc=e.projectId?getProjColor(e.projectId):null;
     const projBadge=proj?`<div class="proj-badge" style="background:${pc}18;color:${pc};border-color:${pc}44">${proj.name}</div>`:'';
     const timeStr=e.startTime&&e.endTime?e.startTime+' ~ '+e.endTime:e.startTime?e.startTime+' 시작':'';
+    const canEdit = e.name===curUser || currentIsAdmin();
     return `<div class="card">
-      <div class="card-actions">
+      ${canEdit?`<div class="card-actions">
         <button class="act-btn" onclick="openEdit('${e.id}')">✏</button>
         <button class="act-btn" onclick="deleteEntry('${e.id}')">✕</button>
-      </div>
+      </div>`:''}
       <div class="card-hd">
         <div class="av" style="background:${bg};color:${fg}">${initials(e.name)}</div>
         <div class="meta">
@@ -1174,8 +1209,9 @@ window._showCalDetail=window.showCalDetail=function(ds){
         <div class="cal-entry-body">${e.task.replace(/</g,'&lt;')}</div>
       </div>
       <div class="cal-entry-acts">
+        ${(e.name===localStorage.getItem('currentUser')||currentIsAdmin())?`
         <button class="act-btn" onclick="openEdit('${e.id}')">✏</button>
-        <button class="act-btn" onclick="deleteEntry('${e.id}');showCalDetail('${ds}')">✕</button>
+        <button class="act-btn" onclick="deleteEntry('${e.id}');showCalDetail('${ds}')">✕</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -1234,7 +1270,8 @@ function initUserSelect(){
 function renderUserButtons(){
   const list = document.getElementById('user-btn-list');
   const members = getMemberList();
-  list.innerHTML = members.map((name,i)=>{
+  // 일반 멤버 버튼
+  let html = members.map((name,i)=>{
     const [bg,fg] = COLORS[i%COLORS.length];
     return `<div class="user-btn-row">
       <button class="user-btn" onclick="selectUser('${name}')">
@@ -1247,6 +1284,15 @@ function renderUserButtons(){
       </span>
     </div>`;
   }).join('');
+  // 어드민 계정 버튼 (항상 하단에 표시)
+  html += `<div class="user-btn-row" style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px;">
+    <button class="user-btn" onclick="selectUser('어드민')" style="border-color:var(--amber-bd);background:var(--amber-bg);">
+      <div class="user-av" style="background:var(--amber-bg);color:var(--amber-txt);">관</div>
+      <span class="user-btn-name" style="color:var(--amber-txt);">어드민</span>
+      <span style="font-size:9px;color:var(--amber-txt);margin-left:auto;">🔐</span>
+    </button>
+  </div>`;
+  list.innerHTML = html;
 }
 
 window._addMember=window.addMember=function(){
@@ -1281,9 +1327,14 @@ function applyUser(name){
   const _ov3=document.getElementById('user-select-overlay'); _ov3.classList.remove('open'); _ov3.style.display='';
   const ov=document.getElementById('user-select-overlay'); ov.classList.remove('open'); ov.style.display='';
   const inp = document.getElementById('inp-name');
-  if(inp) inp.value = name;
+  if(inp) inp.value = isAdminUser(name)?'':name;
   const lbl = document.getElementById('current-user-lbl');
-  if(lbl) lbl.textContent = name;
+  if(lbl){
+    lbl.textContent = name;
+    lbl.style.background = isAdminUser(name)?'var(--amber-bg)':'var(--blue-bg)';
+    lbl.style.color = isAdminUser(name)?'var(--amber-txt)':'var(--blue-txt)';
+    lbl.style.borderColor = isAdminUser(name)?'var(--amber-bd)':'var(--blue-bd)';
+  }
   // 메모 탭 현재 사용자 탭 활성화
   renderMemoTabs();
 }
@@ -1385,7 +1436,11 @@ function renderMemoList(){
 
 // ── 프로젝트 히스토리 ──
 let historyData = {};
-onValue(historyRef,(snap)=>{ historyData=snap.val()||{}; });
+onValue(historyRef,(snap)=>{
+  const newHistData=snap.val()||{};
+  Object.keys(newHistData).forEach(projId=>checkNewHistory(projId, newHistData[projId]));
+  historyData=newHistData;
+});
 
 window._toggleHistory=window.toggleHistory=function(projId){
   const el = document.getElementById('hist-'+projId);
@@ -1406,7 +1461,7 @@ function renderHistoryList(projId){
   const curUser = localStorage.getItem('currentUser')||'';
   const listHtml = items.length ? items.map(h=>{
     const [bg,fg] = getColor(h.author||'?');
-    const isOwner = h.author === curUser;
+    const isOwner = h.author === curUser || currentIsAdmin();
     return `<div class="history-item" id="hitem-${h.id}">
       <div class="av" style="background:${bg};color:${fg};width:20px;height:20px;font-size:9px;flex-shrink:0">${(h.author||'?').slice(0,2)}</div>
       <div style="flex:1;min-width:0">
@@ -1485,6 +1540,11 @@ function savePinData(data){
 // 사용자 선택 → PIN 있으면 입력, 없으면 바로 로그인
 window._selectUser=window.selectUser=function(name){
   if(!name||!name.trim()) return;
+  if(name === '어드민'){
+    // 어드민은 ADMIN_PIN으로 인증
+    showAdminLoginOverlay();
+    return;
+  }
   const pinData = getPinData();
   if(pinData[name]){
     showPinOverlay(name, 'login');
@@ -1796,6 +1856,8 @@ document.addEventListener('keydown', function(e){
     if(e.key==='Escape') closeAdminEdit();
     return;
   }
+  const alVisible = document.getElementById('admin-login-overlay').style.display==='flex';
+  if(alVisible){ if(e.key>='0'&&e.key<='9') alInput(e.key); if(e.key==='Backspace') alDel(); if(e.key==='Escape') closeAdminLoginOverlay(); return; }
   const cpOldVisible = document.getElementById('change-pin-old-overlay').style.display==='flex';
   const cpNewVisible = document.getElementById('change-pin-new-overlay').style.display==='flex';
   if(cpOldVisible){
@@ -1940,6 +2002,122 @@ window.cpNewDel = function(){
   _cpNewBuf=_cpNewBuf.slice(0,-1); updateCpDots('new');
 }
 
+// ── 어드민 권한 체크 ──
+function isAdminUser(name){
+  return name === '어드민';
+}
+function currentIsAdmin(){
+  return isAdminUser(localStorage.getItem('currentUser')||'');
+}
+
+// ── 어드민 로그인 ──
+let _alBuf = '';
+window.showAdminLoginOverlay = function(){
+  _alBuf = '';
+  updateAlDots();
+  document.getElementById('al-err').textContent = '';
+  const uov = document.getElementById('user-select-overlay');
+  uov.classList.remove('open'); uov.style.display='';
+  document.getElementById('admin-login-overlay').style.display = 'flex';
+}
+window.closeAdminLoginOverlay = function(){
+  document.getElementById('admin-login-overlay').style.display = 'none';
+  _alBuf = '';
+  const uov = document.getElementById('user-select-overlay');
+  uov.classList.add('open'); uov.style.display='flex';
+  renderUserButtons();
+}
+function updateAlDots(){
+  for(let i=0;i<4;i++){
+    const d=document.getElementById('ald'+i);
+    if(d){d.style.background=i<_alBuf.length?'var(--amber)':'transparent';d.style.borderColor=i<_alBuf.length?'var(--amber)':'var(--border2)';}
+  }
+}
+window.alInput = function(n){
+  if(_alBuf.length>=4) return;
+  _alBuf+=n; updateAlDots();
+  if(_alBuf.length===4){
+    setTimeout(()=>{
+      if(_alBuf===ADMIN_PIN){
+        document.getElementById('admin-login-overlay').style.display='none';
+        localStorage.setItem('currentUser','어드민');
+        applyUser('어드민');
+      } else {
+        document.getElementById('al-err').textContent='❌ PIN이 틀렸어요.';
+        _alBuf=''; updateAlDots();
+      }
+    },150);
+  }
+}
+window.alDel = function(){
+  _alBuf=_alBuf.slice(0,-1); updateAlDots();
+  document.getElementById('al-err').textContent='';
+}
+
+// ── PC 알림 시스템 ──
+let _prevEntryKeys = null;
+let _prevHistorySnap = {};
+let _notifyEnabled = localStorage.getItem('notifyEnabled') !== 'false'; // 기본 ON
+
+function updateNotifyBtn(){
+  const btn = document.getElementById('notify-toggle-btn');
+  if(!btn) return;
+  btn.textContent = _notifyEnabled ? '🔔' : '🔕';
+  btn.style.opacity = _notifyEnabled ? '1' : '0.4';
+  btn.title = _notifyEnabled ? '알림 켜짐 (클릭하면 끔)' : '알림 꺼짐 (클릭하면 켬)';
+}
+
+window.toggleNotify = function(){
+  _notifyEnabled = !_notifyEnabled;
+  localStorage.setItem('notifyEnabled', _notifyEnabled);
+  updateNotifyBtn();
+}
+
+function sendNotify(title, body){
+  if(!_notifyEnabled) return;
+  if(window.electronAPI && window.electronAPI.notify){
+    window.electronAPI.notify(title, body);
+  }
+}
+
+// 업무 새 글 감지
+function checkNewEntries(newEntries){
+  const curUser = localStorage.getItem('currentUser')||'';
+  const newKeys = Object.keys(newEntries);
+  if(_prevEntryKeys === null){ _prevEntryKeys = new Set(newKeys); return; }
+  newKeys.forEach(k=>{
+    if(!_prevEntryKeys.has(k)){
+      const e = newEntries[k];
+      if(e.name !== curUser){
+        const projName = e.projectId&&projects[e.projectId]?` [${projects[e.projectId].name}]`:'';
+        sendNotify(`📋 ${e.name}님이 업무를 등록했어요${projName}`, e.task?e.task.slice(0,60):'');
+      }
+    }
+  });
+  _prevEntryKeys = new Set(newKeys);
+}
+
+// 이슈/히스토리 새 글 감지
+function checkNewHistory(projId, newItems){
+  const curUser = localStorage.getItem('currentUser')||'';
+  const prevKeys = _prevHistorySnap[projId] || null;
+  const newKeys = Object.keys(newItems||{});
+  if(prevKeys === null){ _prevHistorySnap[projId] = new Set(newKeys); return; }
+  newKeys.forEach(k=>{
+    if(!prevKeys.has(k)){
+      const h = newItems[k];
+      if(h.author !== curUser){
+        const projName = projects[projId]?projects[projId].name:'프로젝트';
+        sendNotify(`💬 ${h.author}님이 이슈를 등록했어요 [${projName}]`, h.text?h.text.slice(0,60):'');
+      }
+    }
+  });
+  _prevHistorySnap[projId] = new Set(newKeys);
+}
+
+// 초기 버튼 상태 설정
+setTimeout(updateNotifyBtn, 500);
+
 window._closeWidget=window.closeWidget=function(){ if(window.electronAPI) window.electronAPI.closeWidget(); }
 window._minimizeWidget=window.minimizeWidget=function(){ if(window.electronAPI) window.electronAPI.minimizeWidget(); }
 
@@ -2077,6 +2255,11 @@ function cpInput(n){ if(window.cpInput) window.cpInput(n); }
 function cpDel(){ if(window.cpDel) window.cpDel(); }
 function cpNewInput(n){ if(window.cpNewInput) window.cpNewInput(n); }
 function cpNewDel(){ if(window.cpNewDel) window.cpNewDel(); }
+function showAdminLoginOverlay(){ if(window.showAdminLoginOverlay) window.showAdminLoginOverlay(); }
+function closeAdminLoginOverlay(){ if(window.closeAdminLoginOverlay) window.closeAdminLoginOverlay(); }
+function alInput(n){ if(window.alInput) window.alInput(n); }
+function alDel(){ if(window.alDel) window.alDel(); }
+function toggleNotify(){ if(window.toggleNotify) window.toggleNotify(); }
 </script>
 </body>
 </html>
