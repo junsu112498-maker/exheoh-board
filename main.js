@@ -10,7 +10,7 @@ let tray = null;
 // 자동 업데이트 설정
 // 배포 URL을 여기서만 바꾸면 됩니다
 // ══════════════════════════════════════
-const REMOTE_URL = 'https://famous-medovik-04a698.netlify.app/index.html';
+const REMOTE_URL = 'https://junsu112498-maker.github.io/exheoh-board/index.html';
 const LOCAL_INDEX = path.join(__dirname, 'index.html');
 const BACKUP_INDEX = path.join(__dirname, 'index.backup.html');
 
