@@ -1415,7 +1415,6 @@ if(localStorage.getItem('currentUser')){
       <option value="작업예정">작업예정</option>
       <option value="기타">기타</option>
     </select>
-    <label>소속팀</label><select id="edit-team" style="width:100%"></select>
     <label>프로젝트</label><select id="edit-proj" style="width:100%"><option value="">없음</option></select>
     <label>날짜</label><input id="edit-date" type="date"/>
     <label>작업 시간</label>
@@ -2066,6 +2065,15 @@ onValue(entriesRef,(snap)=>{
   const newEntries=snap.val()||{};
   checkNewEntries(newEntries);
   entries=newEntries;
+  // team 필드 없는 기존 데이터 자동 채우기
+  const _teamUpdates = {};
+  Object.entries(newEntries).forEach(([id, e]) => {
+    if(!e.team){
+      const grp = getMemberGroup(e.name);
+      if(grp) _teamUpdates['entries/'+id+'/team'] = grp;
+    }
+  });
+  if(Object.keys(_teamUpdates).length > 0) update(ref(db), _teamUpdates);
   render(); renderCal();
   if(document.getElementById('panel-stats').classList.contains('active')) renderStats();
 });
@@ -2136,11 +2144,6 @@ window._openEdit=window.openEdit=function(id){
   document.getElementById('edit-end').value=e.endTime||'';
   document.getElementById('edit-proj').value=e.projectId||'';
   document.getElementById('edit-task').value=e.task;
-  // 소속팀 select 채우기
-  const teamSel = document.getElementById('edit-team');
-  const groups = getGroupList();
-  teamSel.innerHTML = '<option value="">없음</option>' + groups.map(g=>`<option value="${g.name}">${g.name}</option>`).join('');
-  teamSel.value = e.team||'';
   document.getElementById('modal-bg').classList.add('open');
 }
 window._closeModal=window.closeModal=function(){ document.getElementById('modal-bg').classList.remove('open'); editId=null; }
@@ -2149,7 +2152,6 @@ window._saveEdit=window.saveEdit=function(){
   update(ref(db,'entries/'+editId),{
     name:document.getElementById('edit-name').value.trim()||entries[editId].name,
     tag:document.getElementById('edit-tag').value,
-    team:document.getElementById('edit-team').value||'',
     date:document.getElementById('edit-date').value,
     startTime:document.getElementById('edit-start').value,
     endTime:document.getElementById('edit-end').value,
@@ -2316,7 +2318,7 @@ function render(){
         <div class="meta">
           <div class="meta-name" style="display:flex;align-items:center;gap:5px;">
             ${e.name}
-            ${(()=>{ const grp=getMemberGroup(e.name); return grp?`<span style="font-size:9px;font-weight:600;color:var(--text3);background:var(--surface2);border:1px solid var(--border2);border-radius:99px;padding:0 5px;white-space:nowrap;">${grp}</span>`:''; })()}
+            ${(()=>{ const grp=e.team||getMemberGroup(e.name); return grp?`<span style="font-size:9px;font-weight:600;color:var(--text3);background:var(--surface2);border:1px solid var(--border2);border-radius:99px;padding:0 5px;white-space:nowrap;">${grp}</span>`:''; })()}
           </div>
           ${timeStr?`<div class="meta-time" style="display:flex;align-items:center;gap:5px;">${timeStr}${durationBadge}</div>`:''}
         </div>
@@ -3209,7 +3211,7 @@ function renderCal(){
   const calFiltered = calTeamFilters.has('전체')
     ? (calMemberFilter ? all.filter(e=>e.name===calMemberFilter) : all)
     : all.filter(e=>{
-        const grp = getMemberGroup(e.name);
+        const grp = e.team||getMemberGroup(e.name);
         if(!calTeamFilters.has(grp)) return false;
         if(calMemberFilter && e.name!==calMemberFilter) return false;
         return true;
@@ -3252,7 +3254,7 @@ window._showCalDetail=window.showCalDetail=function(ds){
   // 팀 필터 적용
   if(!calTeamFilters.has('전체')){
     de = de.filter(e=>{
-      const grp = getMemberGroup(e.name);
+      const grp = e.team||getMemberGroup(e.name);
       return calTeamFilters.has(grp);
     });
   }
