@@ -3376,8 +3376,9 @@ window._switchTab=window.switchTab=function(id,btn){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   const targetPanel = document.getElementById('panel-'+id);
   targetPanel.classList.add('active');
+  if(id==='board')    targetPanel.style.display='flex';
   if(id==='projects') targetPanel.style.display='flex';
-  if(id==='todo') targetPanel.style.display='flex';
+  if(id==='todo')     targetPanel.style.display='flex';
   btn.classList.add('active');
   if(id==='stats') renderStats();
   if(id==='projects') renderProjList();
