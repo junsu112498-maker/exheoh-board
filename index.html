@@ -1415,7 +1415,6 @@ if(localStorage.getItem('currentUser')){
       <option value="작업예정">작업예정</option>
       <option value="기타">기타</option>
     </select>
-    <label>소속팀</label><select id="edit-team" style="width:100%"></select>
     <label>프로젝트</label><select id="edit-proj" style="width:100%"><option value="">없음</option></select>
     <label>날짜</label><input id="edit-date" type="date"/>
     <label>작업 시간</label>
@@ -2136,11 +2135,6 @@ window._openEdit=window.openEdit=function(id){
   document.getElementById('edit-end').value=e.endTime||'';
   document.getElementById('edit-proj').value=e.projectId||'';
   document.getElementById('edit-task').value=e.task;
-  // 소속팀 select 채우기
-  const teamSel = document.getElementById('edit-team');
-  const groups = getGroupList();
-  teamSel.innerHTML = '<option value="">없음</option>' + groups.map(g=>`<option value="${g.name}">${g.name}</option>`).join('');
-  teamSel.value = e.team||'';
   document.getElementById('modal-bg').classList.add('open');
 }
 window._closeModal=window.closeModal=function(){ document.getElementById('modal-bg').classList.remove('open'); editId=null; }
@@ -2149,7 +2143,6 @@ window._saveEdit=window.saveEdit=function(){
   update(ref(db,'entries/'+editId),{
     name:document.getElementById('edit-name').value.trim()||entries[editId].name,
     tag:document.getElementById('edit-tag').value,
-    team:document.getElementById('edit-team').value||'',
     date:document.getElementById('edit-date').value,
     startTime:document.getElementById('edit-start').value,
     endTime:document.getElementById('edit-end').value,
