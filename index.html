@@ -1056,7 +1056,7 @@ if(localStorage.getItem('currentUser')){
       <span class="cnt-badge" id="cnt">0</span>
       <button class="cal-nav-btn" onclick="changeViewDate(1)" style="padding:2px 9px;font-size:12px;background:var(--blue-bg);color:var(--blue-txt);border-color:var(--blue-bd);">→</button>
       <div id="board-team-filter-bar" class="team-filter-bar" style="flex:0 0 auto;"></div>
-      <div class="filters" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+      <div class="filters">
         <button class="fbtn on" onclick="setFilter('전체',this)">전체</button>
         <button class="fbtn" onclick="setFilter('작업중',this)">작업중</button>
         <button class="fbtn" onclick="setFilter('작업완료',this)">작업완료</button>
@@ -1064,7 +1064,6 @@ if(localStorage.getItem('currentUser')){
         <button class="fbtn" onclick="setFilter('납품',this)">납품</button>
         <button class="fbtn" onclick="setFilter('작업예정',this)">작업예정</button>
         <button class="fbtn" onclick="setFilter('기타',this)">기타</button>
-        <button class="my-only-btn" id="my-only-btn" onclick="toggleMyOnly(this)" title="내 업무만 보기">👤 나만</button>
       </div>
     </div>
     <div id="board-list" style="flex:1;overflow-y:auto;padding-bottom:10px;"></div>
@@ -2188,23 +2187,13 @@ window._submitEntry=window.submitEntry=function(){
   const projectId=document.getElementById('inp-proj').value||'';
   if(!name){nameEl.focus();return;}
   if(!task){document.getElementById('inp-task').focus();return;}
-  const newRef = push(entriesRef,{name,tag,task,date,startTime,endTime,projectId,ts:Date.now()});
-  window._lastRegisteredId = newRef.key;
+  push(entriesRef,{name,tag,task,date,startTime,endTime,projectId,ts:Date.now()});
   document.getElementById('inp-task').value='';
   document.getElementById('inp-start').value='';
   document.getElementById('inp-end').value='';
   document.getElementById('inp-proj').value='';
   const si = document.getElementById('proj-search-input'); if(si) si.value='';
   if(saved) setTimeout(()=>{ nameEl.value=saved; },100);
-  // 등록 후 해당 카드로 스크롤 + 하이라이트
-  setTimeout(()=>{
-    const cardEl = document.getElementById('card-'+window._lastRegisteredId);
-    if(cardEl){
-      cardEl.scrollIntoView({behavior:'smooth', block:'center'});
-      cardEl.classList.add('card-flash');
-      setTimeout(()=>cardEl.classList.remove('card-flash'), 1500);
-    }
-  }, 600);
 }
 window._deleteEntry=window.deleteEntry=function(id){ if(!confirm('삭제하시겠습니까?')) return; remove(ref(db,'entries/'+id)); }
 window._openEdit=window.openEdit=function(id){
@@ -2346,11 +2335,6 @@ function render(){
     const gMembers = g ? (g.members||[]) : [];
     filtered = filtered.filter(e=>gMembers.includes(e.name));
   }
-  // 나만 보기 필터
-  if(window._myOnlyMode) {
-    const me = localStorage.getItem('currentUser')||'';
-    if(me) filtered = filtered.filter(e=>e.name===me);
-  }
   filtered.sort((a,b)=>(b.ts||0)-(a.ts||0));
   document.getElementById('cnt').textContent=todayAll.length;
   const list=document.getElementById('board-list');
@@ -2386,9 +2370,11 @@ function render(){
     }
     const canEdit = e.name===curUser || currentIsAdmin();
 
-    const taskHtml = e.task.replace(/</g,'&lt;').replace(/\n/g,'<br>');
-    const isLong = e.task.length > 80;
-    return `<div class="card" id="card-${e.id}">
+    return `<div class="card">
+      ${canEdit?`<div class="card-actions">
+        <button class="act-btn" onclick="openEdit('${e.id}')">✏</button>
+        <button class="act-btn" onclick="deleteEntry('${e.id}')">✕</button>
+      </div>`:''}
       <div class="card-hd">
         <div class="av" style="background:${bg};color:${fg}">${initials(e.name)}</div>
         <div class="meta">
@@ -2398,33 +2384,16 @@ function render(){
           </div>
           ${timeStr?`<div class="meta-time" style="display:flex;align-items:center;gap:5px;">${timeStr}${durationBadge}</div>`:''}
         </div>
-        <div style="display:flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0;">
-          ${canEdit?`<button class="act-btn" onclick="openEdit('${e.id}')">✏</button>
-          <button class="act-btn" onclick="deleteEntry('${e.id}')">✕</button>`:''}
-          <div class="tag-wrap">
-            <span class="tag t${e.tag.replace(/ /g,'')} tag-clickable" onclick="toggleTagDropdown('${e.id}',event)">${e.tag} ▾</span>
-            <div class="tag-dropdown" id="tagdd-${e.id}">
-              ${['작업중','작업완료','1차송부','납품','작업예정','기타'].map(t=>
-                `<div class="tag-dd-item t${t.replace(/ /g,'')}" onclick="changeEntryTag('${e.id}','${t}',event)">${t}</div>`
-              ).join('')}
-            </div>
-          </div>
-          <button class="card-collapse-btn" id="collapse-btn-${e.id}" onclick="toggleCardCollapse('${e.id}')" title="접기">▲</button>
-        </div>
+        <span class="tag t${e.tag.replace(/ /g,'')}">${e.tag}</span>
       </div>
       ${projBadge}
-      <div class="card-detail" id="card-detail-${e.id}">
-        <div class="card-body-wrap">
-          <div class="card-body-clamp" id="card-body-${e.id}">${taskHtml}</div>
-          ${isLong?`<button class="card-more-btn" id="more-btn-${e.id}" onclick="toggleCardMore('${e.id}')">더보기 ▼</button>`:''}
-        </div>
-        <div class="comment-section">
-          <div id="cmts-${e.id}"></div>
-          <div class="comment-input-row">
-            <input type="text" id="cmt-inp-${e.id}" placeholder="댓글 입력..." maxlength="100" onkeydown="if(event.key==='Enter') addComment('${e.id}')"/>
-            <button onclick="addComment('${e.id}')">등록</button>
-          </div>
-        </div>
+      <div class="card-body">${e.task.replace(/</g,'&lt;')}</div>
+      <div class="comment-section">
+        <div id="cmts-${e.id}"></div>
+        ${canEdit||true?`<div class="comment-input-row">
+          <input type="text" id="cmt-inp-${e.id}" placeholder="댓글 입력..." maxlength="100" onkeydown="if(event.key==='Enter') addComment('${e.id}')"/>
+          <button onclick="addComment('${e.id}')">등록</button>
+        </div>`:''}
       </div>
     </div>`;
   }).join('');
@@ -6056,11 +6025,7 @@ window.ganttPrint = function(){
       }
       window.onload = function(){ autoScale(); setTimeout(()=>window.print(), 500); };
     <\/script>
-  
-<!-- 오프라인 배너 -->
-<div id="offline-banner" class="offline-banner">📡 오프라인 — 업무가 로컬에 저장됩니다</div>
-<div id="sync-banner" class="sync-banner">✅ 온라인 복구 — 저장된 업무 동기화 중...</div>
-</body></html>`;
+  </body></html>`;
 
   // Electron 환경 감지: window.open 대신 blob URL 사용
   const blob = new Blob([printHtml], {type:'text/html'});
@@ -7281,11 +7246,6 @@ function saveAlert(){ if(window.saveAlert) window.saveAlert(); }
 function deleteAlert(id){ if(window.deleteAlert) window.deleteAlert(id); }
 function addComment(id){ if(window.addComment) window.addComment(id); }
 function deleteComment(eid,cid){ if(window.deleteComment) window.deleteComment(eid,cid); }
-function toggleCardCollapse(id){ if(window.toggleCardCollapse) window.toggleCardCollapse(id); }
-function toggleCardMore(id){ if(window.toggleCardMore) window.toggleCardMore(id); }
-function toggleTagDropdown(id,e){ if(window.toggleTagDropdown) window.toggleTagDropdown(id,e); }
-function changeEntryTag(id,tag,e){ if(window.changeEntryTag) window.changeEntryTag(id,tag,e); }
-function toggleMyOnly(btn){ if(window.toggleMyOnly) window.toggleMyOnly(btn); }
 function toggleMemoPin(id){ if(window.toggleMemoPin) window.toggleMemoPin(id); }
 function ganttPrint(){ if(window.ganttPrint) window.ganttPrint(); }
 function ganttCellProgressToggle(e,id){ if(window.ganttCellProgressToggle) window.ganttCellProgressToggle(e,id); }
@@ -7334,148 +7294,6 @@ function toggleNewMemberGroupDd(){ if(window.toggleNewMemberGroupDd) window.togg
 function selectNewMemberGroup(id,name){ if(window.selectNewMemberGroup) window.selectNewMemberGroup(id,name); }
 function confirmCustomPrompt(){ if(window.confirmCustomPrompt) window.confirmCustomPrompt(); }
 function cancelCustomPrompt(){ if(window.cancelCustomPrompt) window.cancelCustomPrompt(); }
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ── 카드 접기/펼치기 ──
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-window._collapsedCards = new Set();
-window.toggleCardCollapse = function(id) {
-  const detail = document.getElementById('card-detail-'+id);
-  const btn = document.getElementById('collapse-btn-'+id);
-  if(!detail) return;
-  const isCollapsed = window._collapsedCards.has(id);
-  if(isCollapsed) {
-    window._collapsedCards.delete(id);
-    detail.style.display = '';
-    if(btn) btn.textContent = '▲';
-  } else {
-    window._collapsedCards.add(id);
-    detail.style.display = 'none';
-    if(btn) btn.textContent = '▼';
-  }
-};
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ── 업무 내용 더보기 ──
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-window.toggleCardMore = function(id) {
-  const body = document.getElementById('card-body-'+id);
-  const btn = document.getElementById('more-btn-'+id);
-  if(!body) return;
-  if(body.classList.contains('expanded')) {
-    body.classList.remove('expanded');
-    if(btn) btn.textContent = '더보기 ▼';
-  } else {
-    body.classList.add('expanded');
-    if(btn) btn.textContent = '접기 ▲';
-  }
-};
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ── 상태 원클릭 변경 ──
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-window.toggleTagDropdown = function(id, event) {
-  event.stopPropagation();
-  // 다른 드롭다운 모두 닫기
-  document.querySelectorAll('.tag-dropdown.open').forEach(dd => {
-    if(dd.id !== 'tagdd-'+id) dd.classList.remove('open');
-  });
-  const dd = document.getElementById('tagdd-'+id);
-  if(dd) dd.classList.toggle('open');
-};
-window.changeEntryTag = function(id, newTag, event) {
-  event.stopPropagation();
-  const {ref, update} = window.firebase_fns||{};
-  const db = window.firebase_db;
-  if(!ref||!update||!db) return;
-  update(ref(db,'entries/'+id), {tag: newTag});
-  const dd = document.getElementById('tagdd-'+id);
-  if(dd) dd.classList.remove('open');
-};
-// 다른 곳 클릭 시 드롭다운 닫기
-document.addEventListener('click', ()=>{
-  document.querySelectorAll('.tag-dropdown.open').forEach(dd=>dd.classList.remove('open'));
-});
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ── 나만 보기 토글 ──
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-window._myOnlyMode = false;
-window.toggleMyOnly = function(btn) {
-  window._myOnlyMode = !window._myOnlyMode;
-  btn.classList.toggle('on', window._myOnlyMode);
-  btn.textContent = window._myOnlyMode ? '👤 나만 ON' : '👤 나만';
-  render();
-};
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ── 오프라인 모드 ──
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const OFFLINE_KEY = 'exheoh_offline_queue';
-function getOfflineQueue() {
-  try { return JSON.parse(localStorage.getItem(OFFLINE_KEY)||'[]'); } catch(e){ return []; }
-}
-function saveOfflineQueue(q) {
-  localStorage.setItem(OFFLINE_KEY, JSON.stringify(q));
-}
-function showOfflineBanner(msg, type='offline') {
-  const b = document.getElementById(type==='sync'?'sync-banner':'offline-banner');
-  if(!b) return;
-  if(msg) b.textContent = msg;
-  b.classList.add('show');
-  setTimeout(()=>b.classList.remove('show'), 3500);
-}
-
-// 온/오프라인 감지
-window.addEventListener('online', ()=>{
-  const q = getOfflineQueue();
-  if(q.length > 0) {
-    showOfflineBanner(`✅ 온라인 복구 — 저장된 업무 ${q.length}건 동기화 중...`, 'sync');
-    const {ref: fbRef, push: fbPush} = window.firebase_fns||{};
-    const db = window.firebase_db;
-    if(fbRef && fbPush && db) {
-      q.forEach(entry => {
-        const entriesRef = fbRef(db, 'entries');
-        fbPush(entriesRef, entry);
-      });
-      saveOfflineQueue([]);
-    }
-  }
-});
-window.addEventListener('offline', ()=>{
-  showOfflineBanner('📡 오프라인 — 업무가 로컬에 저장됩니다');
-});
-
-// submitEntry 오프라인 처리 패치
-const _origSubmit = window.submitEntry;
-window._submitEntry = window.submitEntry = function() {
-  if(!navigator.onLine) {
-    const nameEl = document.getElementById('inp-name');
-    const saved = localStorage.getItem('currentUser');
-    if(saved && !nameEl.value.trim()) nameEl.value = saved;
-    const name = nameEl.value.trim();
-    const tag = document.getElementById('inp-tag').value;
-    const task = document.getElementById('inp-task').value.trim();
-    const date = document.getElementById('inp-date').value;
-    const startTime = document.getElementById('inp-start').value;
-    const endTime = document.getElementById('inp-end').value;
-    const projectId = document.getElementById('inp-proj').value||'';
-    if(!name || !task) { if(!name) nameEl.focus(); else document.getElementById('inp-task').focus(); return; }
-    const q = getOfflineQueue();
-    q.push({name,tag,task,date,startTime,endTime,projectId,ts:Date.now(),_offline:true});
-    saveOfflineQueue(q);
-    document.getElementById('inp-task').value='';
-    document.getElementById('inp-start').value='';
-    document.getElementById('inp-end').value='';
-    document.getElementById('inp-proj').value='';
-    const si = document.getElementById('proj-search-input'); if(si) si.value='';
-    if(saved) setTimeout(()=>{ nameEl.value=saved; },100);
-    showOfflineBanner(`📡 오프라인 저장 완료 (대기 ${q.length}건)`);
-    return;
-  }
-  _origSubmit();
-};
-
 // ── 호출 기능 브리지 ──
 function openCallModal(){ if(window.openCallModal) window.openCallModal(); }
 function closeCallModal(){ if(window.closeCallModal) window.closeCallModal(); }
