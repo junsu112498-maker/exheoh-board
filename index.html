@@ -2215,16 +2215,15 @@ onValue(entriesRef,(snap)=>{
   const newEntries=snap.val()||{};
   checkNewEntries(newEntries);
   entries=newEntries;
-  // 이름/team 필드 자동 보정 (예: "김유빈" → "김유빈 책임")
+  // 이름/team 필드 자동 보정 - 실제 변경 필요한 것만
   const _members = getMemberList();
   const _teamUpdates = {};
   Object.entries(newEntries).forEach(([id, e]) => {
-    // 이름 보정: 멤버 목록에 없으면 포함 매칭으로 정확한 이름 찾기
+    if(!e.name) return;
     if(!_members.includes(e.name)){
-      const matched = _members.find(m => m.startsWith(e.name) || e.name.startsWith(m.split(' ')[0]));
+      const matched = _members.find(m => m && e.name && (m.startsWith(e.name) || e.name.startsWith(m.split(' ')[0])));
       if(matched) _teamUpdates['entries/'+id+'/name'] = matched;
     }
-    // team 필드 없으면 채우기
     if(!e.team){
       const realName = _teamUpdates['entries/'+id+'/name'] || e.name;
       const grp = getMemberGroup(realName);
@@ -2431,7 +2430,7 @@ function render(){
   const td=viewDate;
   const curUser=localStorage.getItem('currentUser')||'';
   const all=Object.entries(entries).map(([id,e])=>({...e,id}));
-  const todayAll=all.filter(e=>!e.date||e.date===td);
+  const todayAll=all.filter(e=>e.date&&e.name&&e.date===td);
   // 태그 필터
   let filtered=filterTag==='전체'?todayAll:todayAll.filter(e=>e.tag===filterTag);
   // 팀 필터
