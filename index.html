@@ -1095,7 +1095,8 @@ if(localStorage.getItem('currentUser')){
     <!-- 입력폼 영역 -->
     <div class="input-card">
       <div class="input-row">
-        <input class="inp-name" id="inp-name" type="text" placeholder="이름" maxlength="10"/>
+        <div class="inp-name" id="inp-name-display" style="display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:default;"></div>
+        <input id="inp-name" type="hidden"/>
         <select class="inp-tag" id="inp-tag">
           <option value="작업중">작업중</option>
           <option value="작업완료">작업완료</option>
@@ -2236,7 +2237,6 @@ onValue(entriesRef,(snap)=>{
 });
 onValue(projectsRef,(snap)=>{
   projects=snap.val()||{};
-  window._projects = projects;
   updateProjSelects(); renderProjList();
   renderUserButtons(); updateMemoProj();
 });
@@ -2248,10 +2248,11 @@ function updateProjSelects(){
     return na;
   });
   const opts=sorted.map(([id,p])=>`<option value="${id}">${p.name}</option>`).join('');
-  ['inp-proj'].forEach(elId=>{
+  ['inp-proj','edit-proj'].forEach(elId=>{
     const el=document.getElementById(elId);
     if(!el) return;
-    el.innerHTML='<option value="">프로젝트</option>'+opts;
+    const empty = elId==='inp-proj'?'<option value="">프로젝트</option>':'<option value="">없음</option>';
+    el.innerHTML=empty+opts;
   });
   updateTeamSelect();
 }
@@ -2445,6 +2446,7 @@ function render(){
     const me = localStorage.getItem('currentUser')||'';
     if(me) filtered = filtered.filter(e=>e.name===me);
   }
+  filtered = filtered.filter(e=>e.name); // name 없는 데이터 제외
   filtered.sort((a,b)=>(b.ts||0)-(a.ts||0));
   document.getElementById('cnt').textContent=todayAll.length;
   const list=document.getElementById('board-list');
@@ -3831,6 +3833,8 @@ function applyUser(name){
   const ov=document.getElementById('user-select-overlay'); ov.classList.remove('open'); ov.style.display='';
   const inp = document.getElementById('inp-name');
   if(inp) inp.value = isAdminUser(name)?'':name;
+  const nameDisplay = document.getElementById('inp-name-display');
+  if(nameDisplay) nameDisplay.textContent = isAdminUser(name)?'이름':name;
   const lbl = document.getElementById('current-user-lbl');
   if(lbl){
     lbl.textContent = name;
@@ -3852,7 +3856,12 @@ window._changeUser=window.changeUser=function(){
 // 등록 후 이름 유지 (submitEntry 직접 패치 대신 훅 방식)
 window._afterSubmitHook = function(){
   const saved = localStorage.getItem('currentUser');
-  if(saved) setTimeout(()=>{ document.getElementById('inp-name').value=saved; },100);
+  if(saved) setTimeout(()=>{
+    const inp = document.getElementById('inp-name');
+    const display = document.getElementById('inp-name-display');
+    if(inp) inp.value = saved;
+    if(display) display.textContent = saved;
+  },100);
 };
 
 
@@ -5454,8 +5463,11 @@ window.cmpSelectMonth = function(m){
 let _bdpYear = new Date().getFullYear();
 let _bdpMonth = new Date().getMonth();
 window.openBoardDatePicker = function(){
-  _bdpYear = new Date().getFullYear();
-  _bdpMonth = new Date().getMonth();
+  // 현재 선택된 viewDate 기준으로 열기
+  const vd = window._getViewDate ? window._getViewDate() : (viewDate || todayStr());
+  const cur = new Date(vd);
+  _bdpYear = cur.getFullYear();
+  _bdpMonth = cur.getMonth();
   renderBdpGrid();
   const bg = document.getElementById('board-date-picker-bg');
   bg.style.display='flex';
@@ -5484,7 +5496,8 @@ function renderBdpGrid(){
   for(let d=1;d<=days;d++){
     const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const isToday=ds===todayStr();
-    const isSel=ds===viewDate;
+    const curVd = window._getViewDate ? window._getViewDate() : viewDate;
+    const isSel=ds===curVd;
     const dow=new Date(y,m,d).getDay();
     const color=dow===0?'#ef4444':dow===6?'#3b82f6':'var(--text)';
     html+=`<div onclick="bdpSelectDate('${ds}')" style="text-align:center;padding:4px 2px;cursor:pointer;border-radius:50%;font-size:11px;font-weight:600;
@@ -5499,8 +5512,14 @@ function renderBdpGrid(){
   document.getElementById('bdp-grid').innerHTML=html;
 }
 window.bdpSelectDate = function(ds){
-  viewDate=ds; updateViewDateLabel(); render();
-  closeBoardDatePicker();
+  // viewDate는 module 스코프라 window._setViewDate 사용
+  if(window._setViewDate) window._setViewDate(ds);
+  else viewDate=ds;
+  if(window._updateViewDateLabel) window._updateViewDateLabel();
+  if(window._render) window._render();
+  // 즉시 닫기
+  const bg = document.getElementById('board-date-picker-bg');
+  if(bg) bg.style.display='none';
 };
 
 // ══════════════════════════════════════════
@@ -7265,6 +7284,22 @@ async function fetchWeather(){
 fetchWeather();
 setInterval(fetchWeather, 30 * 60 * 1000); // 30분마다 갱신
 
+// ── inp-name 자동 동기화 ──
+function syncInpName(){
+  const cur = localStorage.getItem('currentUser')||'';
+  const hidden = document.getElementById('inp-name');
+  const display = document.getElementById('inp-name-display');
+  if(hidden) hidden.value = cur;
+  if(display) display.textContent = cur || '이름';
+}
+// 초기 세팅
+setTimeout(syncInpName, 500);
+// currentUser 변경 감지 (storage 이벤트)
+window.addEventListener('storage', (e)=>{
+  if(e.key==='currentUser') syncInpName();
+});
+window._syncInpName = syncInpName;
+
 // ── 외부 접근용 window 노출 ──
 window._render = render;
 window._updateViewDateLabel = updateViewDateLabel;
@@ -7672,21 +7707,15 @@ window.openEditProjSearch = function(){
 function renderEditProjSearchList(q){
   const dd = document.getElementById('edit-proj-search-dropdown');
   if(!dd) return;
-  // projects가 window에 없으면 module에서 가져오기
-  const projData = (typeof projects !== 'undefined') ? projects : (window._projects||{});
-  const sorted = Object.entries(projData).sort((a,b)=>(a[1].name||'').localeCompare(b[1].name||'','ko'));
+  const sorted = Object.entries(projects).sort((a,b)=>(a[1].name||'').localeCompare(b[1].name||'','ko'));
   const filtered = q
     ? sorted.filter(([id,p])=>(p.name||'').includes(q)||(p.code||'').includes(q))
     : sorted;
   const curVal = document.getElementById('edit-proj').value;
-  if(!filtered.length){
-    dd.innerHTML = '<div class="proj-search-empty">검색 결과 없음</div>';
-    return;
-  }
   const items = [['','없음'],...filtered.map(([id,p])=>[id,p.name])];
   dd.innerHTML = items.map(([id,name])=>`
     <div class="proj-search-item${id===curVal?' selected':''}" onmousedown="selectEditProjSearch('${id}','${(name||'').replace(/'/g,"\'")}')">
-      ${name||'없음'}
+      ${name}
     </div>`).join('');
 }
 window.selectEditProjSearch = function(id, name){
