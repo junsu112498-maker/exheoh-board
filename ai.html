@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JARVIS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0b0d12; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    #__bundler_loading { position: fixed; bottom: 20px; right: 20px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; color: #666; background: #fff; padding: 8px 14px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); z-index: 10000; }
+    #__bundler_thumbnail { position: fixed; inset: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #0b0d12; z-index: 9999; }
+    #__bundler_thumbnail svg { width: 100%; height: 100%; object-fit: contain; }
+    #__bundler_placeholder { color: #999; font-size: 14px; }
+  </style>
+  <noscript>
+    <style>#__bundler_loading { display: none; }</style>
+    <div style="position:fixed;bottom:12px;left:12px;font:13px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;color:#999;background:rgba(255,255,255,0.9);padding:6px 12px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.08);z-index:10000;">
+      This page requires JavaScript to display.
+    </div>
+  </noscript>
+</head>
+<body>
+  <div id="__bundler_thumbnail">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#0b0d12"></rect>
+    <circle cx="600" cy="360" r="120" fill="#1c212c" stroke="rgba(255,255,255,.12)" stroke-width="3"></circle>
+    <circle cx="600" cy="360" r="40" fill="#5b8bf5"></circle>
+    <circle cx="600" cy="360" r="40" fill="none" stroke="#5b8bf5" stroke-opacity="0.18" stroke-width="34"></circle>
+    <text x="600" y="560" font-family="-apple-system,Segoe UI,sans-serif" font-size="56" font-weight="600" letter-spacing="14" fill="#eceef2" text-anchor="middle">JARVIS</text>
+  </svg>
+</div>
+  <div id="__bundler_loading">Unpacking...</div>
+
+  <script>
+    
+document.addEventListener('DOMContentLoaded', async function() {
+  const loading = document.getElementById('__bundler_loading');
+  function setStatus(msg) { if (loading) loading.textContent = msg; }
+
+  // Error sink persists across replaceWith since it's on window, not the DOM.
+  window.addEventListener('error', function(e) {
+    var p = document.body || document.documentElement;
+    var d = document.getElementById('__bundler_err') || p.appendChild(document.createElement('div'));
+    d.id = '__bundler_err';
+    d.style.cssText = 'position:fixed;bottom:12px;left:12px;right:12px;font:12px/1.4 ui-monospace,monospace;background:#2a1215;color:#ff8a80;padding:10px 14px;border-radius:8px;border:1px solid #5c2b2e;z-index:99999;white-space:pre-wrap;max-height:40vh;overflow:auto';
+    d.textContent = (d.textContent ? d.textContent + String.fromCharCode(10) : '') +
+      '[bundle] ' + (e.message || e.type) +
+      (e.filename ? ' (' + e.filename.slice(0, 60) + ':' + e.lineno + ')' : '');
+  }, true);
+
+  try {
+    const manifestEl = document.querySelector('script[type="__bundler/manifest"]');
+    const templateEl = document.querySelector('script[type="__bundler/template"]');
+    if (!manifestEl || !templateEl) {
+      setStatus('Error: missing bundle data');
+      console.error('[bundler] Missing script tags — manifestEl:', !!manifestEl, 'templateEl:', !!templateEl);
+      return;
+    }
+
+    const manifest = JSON.parse(manifestEl.textContent);
+    let template = JSON.parse(templateEl.textContent);
+
+    const uuids = Object.keys(manifest);
+    setStatus('Unpacking ' + uuids.length + ' assets...');
+
+    const blobUrls = {};
+    await Promise.all(uuids.map(async (uuid) => {
+      const entry = manifest[uuid];
+      try {
+        const binaryStr = atob(entry.data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+        let finalBytes = bytes;
+        if (entry.compressed) {
+          if (typeof DecompressionStream !== 'undefined') {
+            const ds = new DecompressionStream('gzip');
+            const writer = ds.writable.getWriter();
+            const reader = ds.readable.getReader();
+            writer.write(bytes);
+            writer.close();
+            const chunks = [];
+            let totalLen = 0;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push(value);
+              totalLen += value.length;
+            }
+            finalBytes = new Uint8Array(totalLen);
+            let offset = 0;
+            for (const chunk of chunks) { finalBytes.set(chunk, offset); offset += chunk.length; }
+          } else {
+            console.warn('DecompressionStream not available, asset ' + uuid + ' may not render');
+          }
+        }
+
+        blobUrls[uuid] = URL.createObjectURL(new Blob([finalBytes], { type: entry.mime }));
+      } catch (err) {
+        console.error('Failed to decode asset ' + uuid + ':', err);
+        blobUrls[uuid] = URL.createObjectURL(new Blob([], { type: entry.mime }));
+      }
+    }));
+
+    const extResEl = document.querySelector('script[type="__bundler/ext_resources"]');
+    const extResources = extResEl ? JSON.parse(extResEl.textContent) : [];
+    const resourceMap = {};
+    for (const entry of extResources) {
+      if (blobUrls[entry.uuid]) resourceMap[entry.id] = blobUrls[entry.uuid];
+    }
+
+    setStatus('Rendering...');
+    for (const uuid of uuids) template = template.split(uuid).join(blobUrls[uuid]);
+
+    // Strip integrity + crossorigin — blob URLs from a file:// document inherit
+    // a null origin, so crossorigin forces a CORS fetch that SRI then rejects.
+    // The manifest bytes are ours; SRI protects against CDN compromise, not this.
+    template = template.replace(/\s+integrity="[^"]*"/gi, '').replace(/\s+crossorigin="[^"]*"/gi, '');
+
+    const resourceScript = '<script>window.__resources = ' +
+      JSON.stringify(resourceMap).split('</' + 'script>').join('<\\/' + 'script>') +
+      ';</' + 'script>';
+    // Inject after <head> so the DOCTYPE stays first; prepending the script
+    // would push the parser into quirks mode. DOMParser always emits a <head>
+    // (synthesizing one if the source HTML omitted it) but may carry
+    // attributes through, so match the full opening tag. slice() rather than
+    // replace() keeps us clear of $-pattern substitution in resourceScript.
+    const headOpen = template.match(/<head[^>]*>/i);
+    if (headOpen) {
+      const i = headOpen.index + headOpen[0].length;
+      template = template.slice(0, i) + resourceScript + template.slice(i);
+    }
+
+    // Parse the template and swap the root element. Scripts inserted via
+    // DOMParser/replaceWith are inert per spec — re-create each with
+    // createElement so they execute, awaiting onload for src scripts to
+    // preserve ordering (React before ReactDOM before Babel before text/babel).
+    const doc = new DOMParser().parseFromString(template, 'text/html');
+    document.documentElement.replaceWith(doc.documentElement);
+    const dead = Array.from(document.scripts);
+    for (const old of dead) {
+      const s = document.createElement('script');
+      for (const a of old.attributes) s.setAttribute(a.name, a.value);
+      s.textContent = old.textContent;
+      // text/babel scripts with a src: fetch and inline. transformScriptTags
+      // does XHR against the src, but blob:null/ from a file:// origin is
+      // silently dropped. Inlining makes it a plain inline babel script,
+      // which transformScriptTags handles unconditionally.
+      if ((s.type === 'text/babel' || s.type === 'text/jsx') && s.src) {
+        const r = await fetch(s.src);
+        s.textContent = await r.text();
+        s.removeAttribute('src');
+      }
+      const p = s.src ? new Promise(function(r) { s.onload = s.onerror = r; }) : null;
+      old.replaceWith(s);
+      if (p) await p;
+    }
+    // Babel standalone auto-transforms type=text/babel on DOMContentLoaded,
+    // which fired before we swapped the document. Trigger manually if present.
+    if (window.Babel && typeof window.Babel.transformScriptTags === 'function') {
+      window.Babel.transformScriptTags();
+    }
+  } catch (err) {
+    setStatus('Error unpacking: ' + err.message);
+    console.error('Bundle unpack error:', err);
+  }
+});
+
+  </script>
+
+  <script type="__bundler/manifest">
+{}
+  </script>
+
+  <script type="__bundler/ext_resources">
+[]
+  </script>
+
+  <script type="__bundler/template">
+"<!DOCTYPE html>\n<html lang=\"ko\"><head>\n<meta charset=\"UTF-8\">\n<title>JARVIS<\u002Ftitle>\n\n<style>\n* { box-sizing:border-box; margin:0; padding:0; }\n:root {\n  --bg:#0b0d12;\n  --surface:#12151c;\n  --surface2:#171b24;\n  --elevated:#1c212c;\n  --accent:#5b8bf5;\n  --accent-soft:rgba(91,139,245,.14);\n  --text:#eceef2;\n  --text2:#a3a9b8;\n  --text3:#646b7d;\n  --border:rgba(255,255,255,.07);\n  --border2:rgba(255,255,255,.12);\n  --ok:#3ecf8e;\n  --off:#f0596a;\n  --font:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Segoe UI','Malgun Gothic',sans-serif;\n}\nhtml,body { width:100%; height:100%; overflow:hidden; background:var(--bg); }\nbody { display:flex; flex-direction:column; font-family:var(--font); color:var(--text); -webkit-app-region:no-drag; -webkit-font-smoothing:antialiased; }\n\n/* ---- Title bar ---- */\n.titlebar { display:flex; align-items:center; gap:11px; padding:13px 16px; background:rgba(18,21,28,.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); -webkit-app-region:drag; flex-shrink:0; }\n.mark { position:relative; flex-shrink:0; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--elevated); border:1px solid var(--border2); }\n.mark::after { content:\"\"; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px var(--accent-soft); }\n.titlebar .mark { width:30px; height:30px; -webkit-app-region:no-drag; }\n.titlebar .mark::after { width:9px; height:9px; }\n.titlebar-info { flex:1; min-width:0; }\n.titlebar-name { font-size:14px; font-weight:650; letter-spacing:.14em; color:var(--text); }\n.titlebar-status { font-size:11px; color:var(--text3); display:flex; align-items:center; gap:5px; margin-top:2px; letter-spacing:.01em; }\n.status-dot { width:6px; height:6px; border-radius:50%; background:var(--off); transition:background .3s; }\n.status-dot.online { background:var(--ok); box-shadow:0 0 0 3px rgba(62,207,142,.15); }\n.titlebar-close { -webkit-app-region:no-drag; background:none; border:none; cursor:pointer; color:var(--text3); width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:all .15s; }\n.titlebar-close svg { width:13px; height:13px; }\n.titlebar-close:hover { background:rgba(255,255,255,.07); color:var(--text); }\n\n/* ---- Messages ---- */\n.messages { flex:1; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column; gap:16px; }\n.messages::-webkit-scrollbar { width:5px; }\n.messages::-webkit-scrollbar-thumb { background:rgba(255,255,255,.08); border-radius:3px; }\n.messages::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.15); }\n.msg { display:flex; gap:9px; align-items:flex-end; max-width:86%; animation:rise .28s cubic-bezier(.2,.7,.3,1); }\n@keyframes rise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }\n.msg.user { align-self:flex-end; flex-direction:row-reverse; }\n.msg.assistant { align-self:flex-start; }\n.msg-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; position:relative; background:var(--elevated); border:1px solid var(--border2); }\n.msg-avatar::after { content:\"\"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:7px; height:7px; border-radius:50%; background:var(--accent); }\n.msg.user .msg-avatar { display:none; }\n.msg-bubble { padding:11px 15px; font-size:13.5px; line-height:1.62; white-space:pre-wrap; word-break:break-word; }\n.msg.user .msg-bubble { background:var(--accent); color:#fff; border-radius:16px 16px 5px 16px; box-shadow:0 2px 10px rgba(91,139,245,.22); }\n.msg.assistant .msg-bubble { background:var(--surface2); color:var(--text); border-radius:5px 16px 16px 16px; border:1px solid var(--border); }\n\n.typing { display:flex; gap:5px; align-items:center; padding:3px 1px; }\n.typing span { width:6px; height:6px; border-radius:50%; background:var(--text3); animation:t 1.3s infinite; }\n.typing span:nth-child(2) { animation-delay:.18s; }\n.typing span:nth-child(3) { animation-delay:.36s; }\n@keyframes t { 0%,60%,100%{transform:translateY(0);opacity:.35} 30%{transform:translateY(-5px);opacity:1} }\n\n/* ---- Welcome ---- */\n.welcome { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:28px 24px; text-align:center; gap:8px; }\n.welcome .mark { width:56px; height:56px; margin-bottom:14px; }\n.welcome .mark::after { width:18px; height:18px; box-shadow:0 0 0 8px var(--accent-soft); }\n.welcome h2 { font-size:19px; font-weight:650; color:var(--text); letter-spacing:-.01em; }\n.welcome p { font-size:13px; color:var(--text2); line-height:1.7; margin-top:2px; }\n.welcome-btns { display:flex; flex-direction:column; gap:9px; width:100%; max-width:300px; margin-top:22px; }\n.welcome-btn { display:flex; align-items:center; gap:11px; padding:13px 16px; border-radius:13px; border:1px solid var(--border); background:var(--surface2); color:var(--text2); cursor:pointer; font-family:var(--font); font-size:12.5px; font-weight:500; text-align:left; transition:all .16s; }\n.welcome-btn::before { content:\"\"; width:6px; height:6px; border-radius:50%; background:var(--text3); flex-shrink:0; transition:all .16s; }\n.welcome-btn:hover { background:var(--elevated); color:var(--text); border-color:var(--border2); transform:translateY(-1px); }\n.welcome-btn:hover::before { background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }\n\n/* ---- Input ---- */\n.input-row { display:flex; gap:9px; padding:13px 16px 16px; border-top:1px solid var(--border); background:rgba(18,21,28,.6); flex-shrink:0; }\n.input { flex:1; padding:12px 16px; border-radius:99px; border:1px solid var(--border2); background:var(--surface); color:var(--text); font-size:13.5px; font-family:var(--font); outline:none; transition:border-color .15s,box-shadow .15s; }\n.input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }\n.input::placeholder { color:var(--text3); }\n.send-btn { width:42px; height:42px; border-radius:50%; background:var(--accent); color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .15s; }\n.send-btn svg { width:17px; height:17px; }\n.send-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 4px 14px rgba(91,139,245,.4); }\n.send-btn:disabled { opacity:.35; cursor:not-allowed; }\n<\u002Fstyle>\n<\u002Fhead>\n<body>\n<div class=\"titlebar\">\n  <div class=\"mark\"><\u002Fdiv>\n  <div class=\"titlebar-info\">\n    <div class=\"titlebar-name\">JARVIS<\u002Fdiv>\n    <div class=\"titlebar-status\">\n      <span class=\"status-dot\" id=\"status-dot\"><\u002Fspan>\n      <span id=\"status-text\">연결 확인 중...<\u002Fspan>\n    <\u002Fdiv>\n  <\u002Fdiv>\n  <button class=\"titlebar-close\" id=\"close-btn\" aria-label=\"닫기\">\n    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"><path d=\"M5 5l14 14M19 5L5 19\"><\u002Fpath><\u002Fsvg>\n  <\u002Fbutton>\n<\u002Fdiv>\n<div class=\"welcome\" id=\"welcome-screen\">\n  <div class=\"mark\"><\u002Fdiv>\n  <h2>안녕하세요<\u002Fh2>\n  <p>저는 JARVIS예요.<br>업무 등록, 팀 현황, 프로젝트 확인<br>무엇이든 물어보세요.<\u002Fp>\n  <div class=\"welcome-btns\">\n    <button class=\"welcome-btn\" id=\"q1\">오늘 팀 업무 요약<\u002Fbutton>\n    <button class=\"welcome-btn\" id=\"q2\">납품 현황 확인<\u002Fbutton>\n    <button class=\"welcome-btn\" id=\"q3\">이번주 내 업무<\u002Fbutton>\n  <\u002Fdiv>\n<\u002Fdiv>\n<div class=\"messages\" id=\"messages\" style=\"display:none;\"><\u002Fdiv>\n<div class=\"input-row\">\n  <input class=\"input\" id=\"input\" placeholder=\"무엇이든 물어보세요...\">\n  <button class=\"send-btn\" id=\"send-btn\" aria-label=\"전송\">\n    <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14M13 6l6 6-6 6\"><\u002Fpath><\u002Fsvg>\n  <\u002Fbutton>\n<\u002Fdiv>\n<script>\nvar OLLAMA_URL = 'http://192.168.1.55:11434';\nvar MODEL = 'llama3.1:latest';\nvar FB_URL = 'https://calendar-64524-default-rtdb.firebaseio.com';\nvar fbEntries = {};\nvar fbProjects = {};\nvar isTyping = false;\n\ndocument.getElementById('close-btn').onclick = function() {\n  if (window.electronAPI && window.electronAPI.closeAIWindow) {\n    window.electronAPI.closeAIWindow();\n  } else {\n    window.close();\n  }\n};\ndocument.getElementById('send-btn').onclick = function() { sendMsg(); };\ndocument.getElementById('input').addEventListener('keydown', function(e) {\n  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }\n});\ndocument.getElementById('q1').onclick = function() { quickSend('오늘 우리팀 업무 요약해줘'); };\ndocument.getElementById('q2').onclick = function() { quickSend('납품 임박한 프로젝트 알려줘'); };\ndocument.getElementById('q3').onclick = function() { quickSend('이번주 내 업무 알려줘'); };\n\nfunction dateStr(d) {\n  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');\n}\n\nfunction parseTargetDate(msg) {\n  var now = new Date();\n  var today = dateStr(now);\n  if (msg.indexOf('어제') >= 0) { var d=new Date(now); d.setDate(d.getDate()-1); return {type:'single',date:dateStr(d),label:'어제'}; }\n  if (msg.indexOf('그저께') >= 0 || msg.indexOf('그제') >= 0) { var d=new Date(now); d.setDate(d.getDate()-2); return {type:'single',date:dateStr(d),label:'그저께'}; }\n  if (msg.indexOf('이번주') >= 0 || msg.indexOf('주간') >= 0) { var m=new Date(now); m.setDate(now.getDate()-((now.getDay()+6)%7)); return {type:'range',from:dateStr(m),to:today,label:'이번주'}; }\n  if (msg.indexOf('지난주') >= 0) { var m=new Date(now); m.setDate(now.getDate()-((now.getDay()+6)%7)-7); var s=new Date(m); s.setDate(m.getDate()+6); return {type:'range',from:dateStr(m),to:dateStr(s),label:'지난주'}; }\n  var rm = msg.match(/최근\\s*(\\d+)일/);\n  if (rm) { var d=new Date(now); d.setDate(d.getDate()-parseInt(rm[1])); return {type:'range',from:dateStr(d),to:today,label:'최근 '+rm[1]+'일'}; }\n  var dm = msg.match(/(\\d{1,2})월\\s*(\\d{1,2})일/);\n  if (dm) { return {type:'single',date:now.getFullYear()+'-'+dm[1].padStart(2,'0')+'-'+dm[2].padStart(2,'0'),label:dm[1]+'월 '+dm[2]+'일'}; }\n  return {type:'single',date:today,label:'오늘'};\n}\n\nfunction getEntriesByDate(dateInfo) {\n  var all = Object.values(fbEntries);\n  if (dateInfo.type === 'single') return all.filter(function(e) { return e.date === dateInfo.date; });\n  return all.filter(function(e) { return e.date >= dateInfo.from && e.date <= dateInfo.to; }).sort(function(a,b) { return (b.ts||0)-(a.ts||0); });\n}\n\nfunction buildContext(userMsg) {\n  var now = new Date();\n  var today = dateStr(now);\n  var projList = Object.values(fbProjects).map(function(p) { return p.name; }).join(', ');\n  var dateInfo = parseTargetDate(userMsg);\n  var entries = getEntriesByDate(dateInfo);\n  var entriesStr = entries.length > 0\n    ? entries.slice(0,20).map(function(e) {\n        return dateInfo.type==='range'\n          ? '['+e.date+'] '+e.name+'('+(e.tag||'')+'): '+(e.task||'')\n          : '- '+e.name+'('+(e.tag||'')+'): '+(e.task||'')+' '+(e.startTime?e.startTime+'~'+e.endTime:'');\n      }).join('\\n')\n    : '등록된 업무 없음';\n  return '당신은 건축 설계 회사 EXHEOH의 AI 어시스턴트 JARVIS입니다.\\n오늘 날짜: '+today+'\\n\\n[프로젝트 목록 (총 '+Object.values(fbProjects).length+'개)]\\n'+Object.values(fbProjects).map(function(p,i){return (i+1)+'. '+p.name+(p.client?' ('+p.client+')':'');}).join('\\n')+'\\n\\n['+dateInfo.label+' 업무 내역 (총 '+entries.length+'건)]\\n'+entriesStr+'\\n\\n★ 규칙: 위 데이터에 있는 내용만 답변하세요. 데이터에 없으면 \"데이터에 없습니다\"라고 하세요. 숫자는 반드시 위 목록을 직접 세어서 답변하세요. 추측 금지. 한국어로 간결하게 답변.\\n사용자: '+userMsg+'\\nJARVIS:';\n}\n\nfunction parseDateTime(msg) {\n  var now = new Date();\n  var m1 = msg.match(/(\\d{1,2})월\\s*(\\d{1,2})일.*?(\\d{1,2})시(?:\\s*(\\d{1,2})분)?/);\n  if (m1) { return now.getFullYear()+'-'+m1[1].padStart(2,'0')+'-'+m1[2].padStart(2,'0')+' '+m1[3].padStart(2,'0')+':'+(m1[4]||'00').padStart(2,'0'); }\n  var m2 = msg.match(/(오전|오후)\\s*(\\d{1,2})시(?:\\s*(\\d{1,2})분)?/);\n  if (m2) { var h=parseInt(m2[2]); if(m2[1]==='오후'&&h<12) h+=12; if(m2[1]==='오전'&&h===12) h=0; return dateStr(now)+' '+String(h).padStart(2,'0')+':'+(m2[3]||'00').padStart(2,'0'); }\n  return null;\n}\n\nasync function loadFirebaseData() {\n  try {\n    var r1 = await fetch(FB_URL+'/entries.json');\n    var r2 = await fetch(FB_URL+'/projects.json');\n    var d1 = await r1.json();\n    var d2 = await r2.json();\n    fbEntries = (d1 && typeof d1 === 'object') ? d1 : {};\n    fbProjects = (d2 && typeof d2 === 'object') ? d2 : {};\n  } catch(e) { console.warn('[JARVIS] Firebase 로드 실패:', e.message); }\n}\n\nasync function checkStatus() {\n  try {\n    var r = await fetch(OLLAMA_URL+'/api/tags', {signal:AbortSignal.timeout(3000)});\n    var dot = document.getElementById('status-dot');\n    var txt = document.getElementById('status-text');\n    if (r.ok) { dot.classList.add('online'); txt.textContent = '온라인'; }\n    else { dot.classList.remove('online'); txt.textContent = '오프라인'; }\n  } catch(e) {\n    document.getElementById('status-dot').classList.remove('online');\n    document.getElementById('status-text').textContent = '오프라인';\n  }\n}\n\nfunction addMsg(role, text) {\n  var welcome = document.getElementById('welcome-screen');\n  var messages = document.getElementById('messages');\n  if (welcome.style.display !== 'none') { welcome.style.display='none'; messages.style.display='flex'; }\n  var div = document.createElement('div');\n  div.className = 'msg '+role;\n  div.innerHTML = '<div class=\"msg-avatar\"><\u002Fdiv><div class=\"msg-bubble\">'+text.replace(/<\u002Fg,'&lt;')+'<\u002Fdiv>';\n  messages.appendChild(div);\n  messages.scrollTop = messages.scrollHeight;\n}\n\nfunction showTyping() {\n  var messages = document.getElementById('messages');\n  var welcome = document.getElementById('welcome-screen');\n  if (welcome.style.display !== 'none') { welcome.style.display='none'; messages.style.display='flex'; }\n  var div = document.createElement('div');\n  div.className = 'msg assistant'; div.id = 'typing';\n  div.innerHTML = '<div class=\"msg-avatar\"><\u002Fdiv><div class=\"msg-bubble\"><div class=\"typing\"><span><\u002Fspan><span><\u002Fspan><span><\u002Fspan><\u002Fdiv><\u002Fdiv>';\n  messages.appendChild(div);\n  messages.scrollTop = messages.scrollHeight;\n}\n\nfunction hideTyping() { var el=document.getElementById('typing'); if(el) el.remove(); }\n\nfunction detectIntent(msg) {\n  var hasReg = msg.indexOf('등록') >= 0 || msg.indexOf('추가') >= 0 || msg.indexOf('해줘') >= 0\n            || msg.indexOf('넣어') >= 0 || msg.indexOf('설정') >= 0 || msg.indexOf('잡아') >= 0\n            || msg.indexOf('걸어') >= 0;\n  var isAlert = msg.indexOf('알림') >= 0 || msg.indexOf('리마인더') >= 0 || msg.indexOf('reminder') >= 0;\n  if (isAlert && hasReg) return 'alert';\n  if (isAlert && /\\d{1,2}월\\s*\\d{1,2}일/.test(msg)) return 'alert';\n  if (hasReg && msg.indexOf('프로젝트') >= 0) return 'project';\n  if (hasReg && (msg.indexOf('업무') >= 0 || msg.indexOf('했어') >= 0 || msg.indexOf('완료') >= 0 || msg.indexOf('작업') >= 0)) return 'entry';\n  // 직접 계산 가능한 조회\n  var isCount = msg.indexOf('몇개') >= 0 || msg.indexOf('몇 개') >= 0 || msg.indexOf('갯수') >= 0 || msg.indexOf('개수') >= 0 || msg.indexOf('몇건') >= 0;\n  var isList  = msg.indexOf('목록') >= 0 || msg.indexOf('알려줘') >= 0 || msg.indexOf('보여줘') >= 0 || msg.indexOf('뭐있어') >= 0 || msg.indexOf('뭐야') >= 0;\n  var isProj  = msg.indexOf('프로젝트') >= 0;\n  if (isProj && (isCount || isList)) return 'proj_query';\n  // 담당자 조회: \"홍길동 담당\", \"홍길동 프로젝트\", \"담당자 누구\", \"누가 담당\"\n  var isManager = msg.indexOf('담당') >= 0 || msg.indexOf('맡고') >= 0 || msg.indexOf('맡은') >= 0;\n  if (isManager) return 'manager_query';\n  return 'query';\n}\n\n// 프로젝트 직접 조회 (AI 없이 Firebase 데이터로 정확히 답변)\nfunction handleProjQuery(msg) {\n  var projects = Object.values(fbProjects);\n  // 건설사 필터 추출: \"현대건설 프로젝트\", \"롯데건설 프로젝트\" 등\n  var clientFilter = null;\n  var clientMatch = msg.match(/([가-힣]+(?:건설|산업|종합|개발|주택|엔지니어링|건축|리얼티|E&C|enc|ENC))/);\n  if (clientMatch) clientFilter = clientMatch[1];\n\n  var filtered = clientFilter\n    ? projects.filter(function(p) { return p.client && p.client.indexOf(clientFilter) >= 0; })\n    : projects;\n\n  var count = filtered.length;\n  var isCount = msg.indexOf('몇개') >= 0 || msg.indexOf('몇 개') >= 0 || msg.indexOf('갯수') >= 0 || msg.indexOf('개수') >= 0;\n\n  if (count === 0) {\n    return (clientFilter ? clientFilter+'의 ' : '')+'프로젝트가 없어요.';\n  }\n  var listStr = filtered.map(function(p, i) { return (i+1)+'. '+p.name+(p.client?' ('+p.client+')':''); }).join('\\n');\n  if (isCount) {\n    return (clientFilter ? clientFilter+' ' : '')+'프로젝트는 총 '+count+'개입니다.\\n\\n'+listStr;\n  }\n  return (clientFilter ? clientFilter+' ' : '')+'프로젝트 목록 ('+count+'개):\\n\\n'+listStr;\n}\n\n// 담당자 직접 조회 (AI 없이 Firebase 데이터로 정확히 답변)\nfunction handleManagerQuery(msg) {\n  var projects = Object.values(fbProjects);\n\n  // 1) 특정 프로젝트의 담당자 묻기: \"고양창릉 담당자 누구야\"\n  var projMatch = null;\n  for (var i = 0; i < projects.length; i++) {\n    if (projects[i].name && msg.indexOf(projects[i].name) >= 0) { projMatch = projects[i]; break; }\n  }\n  if (projMatch) {\n    var managers = [];\n    if (projMatch.design)   managers.push('설계 담당: ' + projMatch.design);\n    if (projMatch.eng)      managers.push('엔지니어링 담당: ' + projMatch.eng);\n    if (projMatch.manager)  managers.push('담당자: ' + projMatch.manager);\n    if (managers.length === 0) return '📁 ' + projMatch.name + '\\n담당자 정보가 없어요.';\n    return '📁 ' + projMatch.name + ' 담당자\\n\\n' + managers.join('\\n');\n  }\n\n  // 2) 특정 담당자가 맡은 프로젝트 묻기: \"홍길동 담당 프로젝트\", \"홍길동 맡은 거\"\n  // 직함 키워드는 이름으로 뽑지 않음\n  var titleWords = ['담당','책임','팀장','대리','과장','부장','선임','수석','주임','사원','설정','알림','등록','추가','프로젝트','업무','작업','확인','조회','목록','현황','맡고','맡은'];\n  var nameMatch = msg.match(/([가-힣]{2,4})(?:\\s*(?:씨|님|이|가|은|는|의))?\\s*(?:담당|맡고|맡은|프로젝트)/);\n  if (!nameMatch) nameMatch = msg.match(/([가-힣]{2,4})\\s*(?:책임|팀장|대리|과장|부장|선임|수석|주임)?\\s*담당/);\n  if (nameMatch && titleWords.indexOf(nameMatch[1]) >= 0) nameMatch = null;\n\n  if (nameMatch) {\n    var name = nameMatch[1];\n    // Firebase에 \"박제정 책임\", \"박제정\" 등 다양하게 저장될 수 있으므로\n    // 이름이 포함된 값과 정확히 매칭 (이름 시작 부분 일치)\n    // \"박제정 책임\", \"박제정책임\", \"박제정\" → 공백/직함 제거 후 이름만 비교\n    var titleSuffix = ['책임','팀장','실장','선임','수석','주임','대리','과장','부장','사원'];\n    function stripTitle(val) {\n      if (!val) return '';\n      var s = val.replace(/\\s+/g, '');\n      for (var ti = 0; ti < titleSuffix.length; ti++) {\n        if (s.slice(-titleSuffix[ti].length) === titleSuffix[ti]) {\n          s = s.slice(0, s.length - titleSuffix[ti].length); break;\n        }\n      }\n      return s;\n    }\n    function matchName(fieldVal, n) {\n      return stripTitle(fieldVal) === n;\n    }\n    var matched = projects.filter(function(p) {\n      return matchName(p.design, name) || matchName(p.eng, name) || matchName(p.manager, name);\n    });\n    if (matched.length === 0) return name + '님이 담당한 프로젝트가 없어요.';\n    var listStr = matched.map(function(p, i) {\n      var role = [];\n      if (matchName(p.design,  name)) role.push('설계');\n      if (matchName(p.eng,     name)) role.push('엔지니어링');\n      if (matchName(p.manager, name)) role.push('담당');\n      return (i+1) + '. ' + p.name + (p.client ? ' ('+p.client+')' : '') + ' [' + role.join('/') + ']';\n    }).join('\\n');\n    return name + '님 담당 프로젝트 ('+matched.length+'개):\\n\\n' + listStr;\n  }\n\n  // 3) 전체 담당자 목록: \"담당자 목록\", \"누가 담당하고 있어\"\n  // 전체 담당자 목록: 공백/직함 제거 후 이름 기준으로 그룹핑\n  var titleSuffix2 = ['책임','팀장','실장','선임','수석','주임','대리','과장','부장','사원'];\n  function stripTitle2(val) {\n    if (!val) return '';\n    var s = val.replace(/\\s+/g, '');\n    for (var ti = 0; ti < titleSuffix2.length; ti++) {\n      if (s.slice(-titleSuffix2[ti].length) === titleSuffix2[ti]) {\n        s = s.slice(0, s.length - titleSuffix2[ti].length); break;\n      }\n    }\n    return s;\n  }\n  var managerMap = {};\n  projects.forEach(function(p) {\n    [p.design, p.eng, p.manager].forEach(function(m) {\n      if (!m || m === '미정') return;\n      var cleanName = stripTitle2(m);\n      if (!cleanName) return;\n      if (!managerMap[cleanName]) managerMap[cleanName] = [];\n      if (managerMap[cleanName].indexOf(p.name) < 0) managerMap[cleanName].push(p.name);\n    });\n  });\n  var names = Object.keys(managerMap);\n  if (names.length === 0) return '담당자 정보가 없어요.';\n  return '👥 담당자 목록 ('+names.length+'명):\\n\\n' +\n    names.map(function(n) { return '• ' + n + ' — ' + managerMap[n].length + '개 프로젝트'; }).join('\\n');\n}\n\nasync function sendMsg() {\n  if (isTyping) return;\n  var inp = document.getElementById('input');\n  var msg = inp.value.trim();\n  if (!msg) return;\n  inp.value = '';\n  addMsg('user', msg);\n  isTyping = true;\n  document.getElementById('send-btn').disabled = true;\n  showTyping();\n\n  var intent = detectIntent(msg);\n\n  try {\n    if (intent === 'proj_query') {\n      hideTyping();\n      addMsg('assistant', handleProjQuery(msg));\n    } else if (intent === 'manager_query') {\n      hideTyping();\n      addMsg('assistant', handleManagerQuery(msg));\n    } else if (intent === 'alert') {\n      var dt = parseDateTime(msg);\n      // 알림 내용 추출 개선: 날짜/시간/알림/등록/설정/해줘 제거 후 나머지를 내용으로\n      var content = msg\n        .replace(/\\d{1,2}월\\s*\\d{1,2}일/g,'')\n        .replace(/(오전|오후)?\\s*\\d{1,2}시(\\s*\\d{1,2}분)?/g,'')\n        .replace(/알림|등록|추가|해줘|설정|잡아|걸어|넣어|리마인더/g,'')\n        .replace(/\\s+/g,' ').trim();\n      if (!content) content = '알림';\n      if (dt) {\n        var payload = {author:'JARVIS', datetime:dt, content:content, notified:false, ts:Date.now()};\n        var res = await fetch(FB_URL+'/userAlerts.json', {\n          method:'POST',\n          headers:{'Content-Type':'application/json'},\n          body:JSON.stringify(payload)\n        });\n        var resData = await res.json();\n        hideTyping();\n        if (res.ok && resData && resData.name) {\n          addMsg('assistant', '✅ 알림 등록 완료!\\n\\n📅 일시: '+dt+'\\n📝 내용: '+content);\n        } else {\n          addMsg('assistant', '❌ 알림 등록 실패했어요.\\n상태코드: '+res.status+'\\n응답: '+JSON.stringify(resData));\n        }\n      } else {\n        hideTyping();\n        addMsg('assistant', '날짜/시간을 포함해주세요.\\n예: \"5월 21일 오후 2시 납품 마감 알림 설정해줘\"');\n      }\n    } else if (intent === 'entry') {\n      var parsePrompt = '다음 텍스트에서 업무 정보를 추출해서 JSON만 출력하세요:\\n텍스트: \"'+msg+'\"\\n형식: {\"name\":\"이름\",\"task\":\"업무내용\",\"date\":\"'+dateStr(new Date())+'\",\"startTime\":\"\",\"endTime\":\"\",\"tag\":\"작업중\"}\\nJSON만:';\n      var r = await fetch(OLLAMA_URL+'/api/generate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,prompt:parsePrompt,stream:false})});\n      var data = await r.json();\n      var jsonStr = data.response.match(/\\{[\\s\\S]*\\}/)?.[0];\n      if (jsonStr) {\n        var parsed = JSON.parse(jsonStr);\n        var projMatch = Object.entries(fbProjects).find(function(kv) { return msg.indexOf(kv[1].name) >= 0; });\n        parsed.projectId = projMatch ? projMatch[0] : '';\n        parsed.ts = Date.now();\n        var res = await fetch(FB_URL+'/entries.json', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed)});\n        hideTyping();\n        addMsg('assistant', res.ok ? '✅ 업무 등록 완료!\\n\\n👤 '+parsed.name+'\\n📝 '+parsed.task+'\\n📅 '+parsed.date+'\\n🏷 '+parsed.tag : '❌ 등록 실패했어요.');\n      } else {\n        hideTyping();\n        addMsg('assistant', '업무 내용을 더 자세히 말씀해주세요.\\n예: \"홍길동 오늘 고양창릉 현장 작업완료로 등록해줘\"');\n      }\n    } else if (intent === 'project') {\n      var parsePrompt = '다음 텍스트에서 프로젝트 정보를 추출해서 JSON만 출력하세요:\\n텍스트: \"'+msg+'\"\\n형식: {\"code\":\"\",\"name\":\"프로젝트명\",\"client\":\"\",\"design\":\"\",\"eng\":\"\"}\\nJSON만:';\n      var r = await fetch(OLLAMA_URL+'/api/generate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,prompt:parsePrompt,stream:false})});\n      var data = await r.json();\n      var jsonStr = data.response.match(/\\{[\\s\\S]*\\}/)?.[0];\n      if (jsonStr) {\n        var parsed = JSON.parse(jsonStr);\n        var res = await fetch(FB_URL+'/projects.json', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed)});\n        hideTyping();\n        addMsg('assistant', res.ok ? '✅ 프로젝트 등록 완료!\\n\\n📁 '+parsed.name : '❌ 등록 실패했어요.');\n        await loadFirebaseData();\n      } else {\n        hideTyping();\n        addMsg('assistant', '프로젝트명을 포함해주세요.');\n      }\n    } else {\n      var r = await fetch(OLLAMA_URL+'/api/generate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,prompt:buildContext(msg),stream:false})});\n      var data = await r.json();\n      hideTyping();\n      addMsg('assistant', data.response || '답변을 생성하지 못했어요.');\n    }\n  } catch(e) {\n    hideTyping();\n    addMsg('assistant', '❌ 오류가 발생했어요: '+e.message);\n  }\n\n  isTyping = false;\n  document.getElementById('send-btn').disabled = false;\n}\n\nfunction quickSend(msg) {\n  document.getElementById('input').value = msg;\n  sendMsg();\n}\n\ncheckStatus();\nsetInterval(checkStatus, 30000);\nloadFirebaseData();\nsetInterval(loadFirebaseData, 60000);\ndocument.getElementById('input').focus();\n<\u002Fscript>\n\n\n<\u002Fbody><\u002Fhtml>"
+  </script>
+</body>
+</html>

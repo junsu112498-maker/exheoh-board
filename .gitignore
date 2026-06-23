@@ -1,0 +1,16 @@
+# 의존성 / 빌드 산출물 (절대 푸시하지 않음)
+node_modules/
+dist/
+
+# 자동 업데이트 임시 폴더
+_update_temp/
+
+# 옛 백업 / 작업용 파일
+index0.html
+css/style0.css
+새 폴더/
+split_script.py
+
+# OS / 에디터
+Thumbs.db
+.DS_Store

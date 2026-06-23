@@ -23,4 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDoToggleMaximize: (cb) => ipcRenderer.on('do-toggle-maximize', cb),
 
   getScreenSize: () => ipcRenderer.invoke('get-win-state'),
+
+  // AI 채팅 창 열기/닫기
+  openAIWindow: () => ipcRenderer.send('open-ai-window'),
+  closeAIWindow: () => ipcRenderer.send('close-ai-window'),
 });

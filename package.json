@@ -1,19 +1,28 @@
 {
-  "name": "design-team-board",
+  "name": "exheoh-board",
   "version": "1.0.0",
-  "description": "설계팀 업무 보드 위젯",
+  "description": "EXHEOH 업무 보드 위젯",
   "main": "main.js",
-  "author": "설계팀",
+  "author": "EXHEOH",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder"
   },
   "build": {
-    "appId": "com.designteam.board",
-    "productName": "설계팀 업무보드",
+    "appId": "com.exheoh.board",
+    "productName": "EXHEOH 업무보드",
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
     }
   },
   "devDependencies": {
